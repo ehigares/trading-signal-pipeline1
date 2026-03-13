@@ -1,0 +1,7 @@
+.env
+.mcp.json
+news.json
+best_signal.json
+trade_signal.json
+__pycache__
+*.pyc
