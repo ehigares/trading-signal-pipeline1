@@ -5,3 +5,5 @@ yfinance
 python-dotenv
 pandas
 slack-sdk
+lxml
+html5lib
