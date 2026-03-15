@@ -1,0 +1,9 @@
+feedparser
+requests
+beautifulsoup4
+yfinance
+python-dotenv
+pandas
+slack-sdk
+lxml
+html5lib

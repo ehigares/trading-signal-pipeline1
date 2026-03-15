@@ -5,3 +5,7 @@ best_signal.json
 trade_signal.json
 __pycache__
 *.pyc
+options_news.json
+options_candidates.json
+options_signal.json
+options_contract.json
