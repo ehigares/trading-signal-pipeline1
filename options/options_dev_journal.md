@@ -19,7 +19,7 @@
 
 ---
 
-## Project Status: PHASE 1 COMPLETE — SETUP + NEWS & FILTERING DONE
+## Project Status: PHASES 2-4 COMPLETE — BRAIN + CONTRACT + FORMATTER DONE
 
 ---
 
@@ -83,30 +83,30 @@ good reason — document any changes here.
 - [ ] Push to GitHub, pull to Droplet, verify on Droplet
 
 ### Phase 2 — Signal Selection (options_brain.py)
-- [ ] Create options_brain.py — score each catalyst 1-10
-- [ ] Apply direction logic (Call vs Put) based on catalyst type
-- [ ] Pick single best opportunity (highest score, passes all filters)
-- [ ] Handle no-signal case (score < 7 → flag for No Signal message)
-- [ ] Save output as options_signal.json
-- [ ] Verify output contains ticker, direction, catalyst, score
+- [x] Create options_brain.py — score each catalyst 1-10
+- [x] Apply direction logic (Call vs Put) based on catalyst type
+- [x] Pick single best opportunity (highest score, passes all filters)
+- [x] Handle no-signal case (score < 7 → flag for No Signal message)
+- [x] Save output as options_signal.json
+- [x] Verify output contains ticker, direction, catalyst, score
 - [ ] Push to GitHub, pull to Droplet, verify on Droplet
 
 ### Phase 3 — Contract Selection (options_contract.py)
-- [ ] Create options_contract.py — fetch options chain via yfinance
-- [ ] Select strike closest to target delta (0.35-0.45)
-- [ ] Select expiration based on catalyst type DTE logic
-- [ ] Calculate entry (mid-price), stop (50%), target (100%), contract count
-- [ ] Apply position sizing ($400 max, 3 contract hard cap)
-- [ ] Save output as options_contract.json
-- [ ] Verify math is correct and sizing makes sense
+- [x] Create options_contract.py — fetch options chain via yfinance
+- [x] Select strike closest to target delta (0.35-0.45)
+- [x] Select expiration based on catalyst type DTE logic
+- [x] Calculate entry (mid-price), stop (50%), target (100%), contract count
+- [x] Apply position sizing ($400 max, 3 contract hard cap)
+- [x] Save output as options_contract.json
+- [x] Verify math is correct and sizing makes sense
 - [ ] Push to GitHub, pull to Droplet, verify on Droplet
 
 ### Phase 4 — Slack Output (options_formatter.py)
-- [ ] Create options_formatter.py — build Slack Block Kit message
-- [ ] Use signal format from options/CLAUDE.md exactly
-- [ ] Send test message to #options-signals channel
-- [ ] Verify formatting looks correct on both desktop and mobile
-- [ ] Verify No Signal message also formats correctly
+- [x] Create options_formatter.py — build Slack Block Kit message
+- [x] Use signal format from options/CLAUDE.md exactly
+- [x] Send test message to #options-signals channel
+- [x] Verify formatting looks correct on both desktop and mobile
+- [x] Verify No Signal message also formats correctly
 - [ ] Push to GitHub, pull to Droplet, verify on Droplet
 
 ### Phase 5 — Logging (options_logger.py + n8n workflow)
@@ -165,6 +165,38 @@ Claude Code must add an entry here after every session.
 - Build Phase 5: options_logger.py (n8n webhook POST)
 - Build Phase 6: options_main.py (orchestrator)
 - Push all files to GitHub and verify on Droplet
+---
+## Session 2 — 2026-03-15
+**Status:** Phases 2-4 Complete (Brain + Contract + Formatter)
+**Completed:**
+- Built options_brain.py — scores catalysts 1-10, determines Call/Put direction
+  - MRVL scored 8 (ANALYST_UPGRADE -> CALL) — correctly selected as best candidate
+  - No-signal case verified (threshold temporarily set to 11, produced correct output)
+  - Tiebreaker logic implemented: earnings > analyst > gap > macro
+- Built options_contract.py — fetches live options chain, selects strike + expiration
+  - MRVL $88 CALL Mar 27 (DTE 12, within 10-14 target for analyst upgrades)
+  - Entry $3.95, Stop $2.00, Target $7.90 — all math verified correct
+  - 2 contracts, $390 total risk (under $400 cap), $790 total target
+  - Delta unavailable on weekend (yfinance limitation) — will populate on weekday
+- Built options_formatter.py — sends Block Kit message to #options-signals Slack channel
+  - Signal message sent successfully with all fields populated
+  - No-signal message also sent and verified
+  - Uses OPTIONS_SLACK_WEBHOOK_URL (confirmed NOT stocks webhook)
+  - ThinkScript block included with underlying alert level
+**Issues encountered:**
+- Unicode arrow characters caused UnicodeEncodeError on Windows cp1252 console — replaced with ASCII
+- yfinance does not return delta values on weekends — fallback to first OTM strike works correctly
+- Delta shows as "N/A (weekend)" in Slack message — will show actual value on weekday runs
+**Weekend data notes (verify on weekday):**
+- Options chain bid/ask may be stale weekend quotes — entry/stop/target math is correct but prices will differ on live market day
+- Delta will be populated from yfinance on weekday when market data is fresh
+- IV Rank (51.1%) carried from options_universe.py — uses realized vol approximation
+**Next session should:**
+- Build Phase 5: options_logger.py (n8n webhook POST)
+- Build Phase 6: options_main.py (orchestrator)
+- Push all files to GitHub and deploy to Droplet
+- Add cron job to Droplet crontab
+- Run live test on a market morning
 ---
 
 ---
