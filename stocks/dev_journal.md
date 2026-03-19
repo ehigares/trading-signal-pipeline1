@@ -201,6 +201,24 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 5 — 2026-03-19
+**Status:** SEC EDGAR ticker extraction improvement
+**Completed:**
+- Ported `_lookup_ticker_by_cik()` from `options/fetch_options_news.py` into `stocks/fetch_news.py`. Exact same logic — queries `data.sec.gov/submissions/CIK{cik}.json` to resolve CIK numbers to ticker symbols.
+- Modified the existing title regex in `fetch_sec_edgar()` to capture the CIK as a second group: `r"8-K(?:/A)?\s*-\s*(.+?)\s*\((\d+)\)"`. Added fallback: if `extract_ticker_from_parentheses()` returns empty and a CIK was found, call `_lookup_ticker_by_cik()`.
+- Deployed to Droplet and ran `fetch_news.py` once. Results:
+  - SEC EDGAR: **27/40 items now have tickers** (was 0/40)
+  - Total with tickers: **57/280** (was 30/280, a 90% increase)
+  - 13 EDGAR items without tickers are non-public entities (Federal Home Loan Banks, SPVs like Carvana Auto Receivables Trust) — expected, they don't have ticker symbols.
+  - Sample tickers resolved: CBL, STK, TY, BFRI, PHGE, KRAQ, ONCY, GETY, NTRP, ACCS
+**Issues encountered:**
+- None — exact port of proven options pipeline logic.
+**Next session should:**
+- Run brain.py to see how many of these new EDGAR tickers make it through the stock universe filter and scoring
+- Investigate Finviz URL replacement (still 0/180 — wrong URL being scraped)
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
