@@ -247,6 +247,25 @@ Claude Code must add an entry here after every session.
 ---
 
 ---
+## Session 4 — 2026-03-19
+**Status:** SEC EDGAR Item number classification for options pipeline
+**Completed:**
+- Added SEC EDGAR Item number checks to `classify_options_catalyst()` in `options/fetch_options_news.py`. Checks `Item 2.02` → EARNINGS_BEAT, `Item 1.01` → MA_ANNOUNCEMENT, `Item 5.02` → ANALYST_UPGRADE before any keyword matching. Same logic as stocks pipeline.
+- Deployed to Droplet and ran `fetch_options_news.py` once. Results:
+  - SEC EDGAR items with OTHER: **10/40** (was 38/40) — 28 items reclassified
+  - EARNINGS_BEAT: 6 → **25** (+19) — 15 new from Item 2.02
+  - MA_ANNOUNCEMENT: 2 → **7** (+5) — 5 new from Item 1.01
+  - ANALYST_UPGRADE: 4 → **8** (+4) — includes Item 5.02 officer changes (mapped to ANALYST_UPGRADE per user spec) plus new Yahoo content
+  - OTHER: 221 → **193** (-28)
+- Confirmed `options_universe.py` line 218 (`if catalyst_type == "OTHER": continue`) is intentional and the newly classified items will now correctly pass through to the filter stage. **28 EDGAR items with tickers** that were previously silently dropped as OTHER will now reach the options filters.
+- Notable tickers now reaching filters: **FDX** (FedEx, EARNINGS_BEAT via Item 2.02), **CVS** (CVS Health, ANALYST_UPGRADE via Item 5.02), **LNG** (Cheniere Energy, MA_ANNOUNCEMENT via Item 1.01), **TRIP** (TripAdvisor, ANALYST_UPGRADE via Item 5.02), **RGA** (Reinsurance Group, ANALYST_UPGRADE via Item 5.02)
+**Issues encountered:**
+- None — straightforward 6-line addition matching stocks pipeline logic.
+**Next session should:**
+- Run options_universe.py to see how many of the newly classified items pass the options filters (volume, spread, IV rank, expected move)
+- FDX is a large-cap S&P 500 stock with Item 2.02 earnings — good test case for full pipeline
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
