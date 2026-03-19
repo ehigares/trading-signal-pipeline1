@@ -219,6 +219,26 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 6 — 2026-03-19
+**Status:** Catalyst classifier improvement — SEC EDGAR Item numbers
+**Completed:**
+- Added SEC EDGAR Item number checks at the top of `classify_catalyst()` in `stocks/fetch_news.py`. Checks `Item 2.02` → earnings, `Item 1.01` → merger, `Item 5.02` → leadership before any keyword matching. Item numbers are definitive — more reliable than keyword heuristics.
+- No other logic changed. Existing keyword matching remains as fallback for non-EDGAR sources.
+- Deployed to Droplet and ran `fetch_news.py` once. Results:
+  - **11/40 SEC EDGAR items now classified by Item numbers** (was 0 — all fell through to keyword/general)
+  - Item 2.02 (earnings): 2 items — BFRI, ACCS
+  - Item 1.01 (merger/material agreement): 9 items — Ford Credit (2), RGCO, CPT, AMS, CBL, Carvana (2), PHGE
+  - Item 5.02 (leadership): 0 items this run
+  - Remaining 29 EDGAR items have no Item 2.02/1.01/5.02 — correctly fall through to keyword/general
+- Note: Item 1.01 ("Entry into a Material Definitive Agreement") covers both M&A and debt agreements. Some entries classified as "merger" are actually debt facilities (Ford Credit, Carvana auto receivables trusts, CBL). This is acceptable — brain.py will filter them out via the stock universe check since SPVs and trusts don't have tradeable tickers.
+**Issues encountered:**
+- None — straightforward 6-line addition.
+**Next session should:**
+- Run brain.py to see if the new earnings/merger classifications produce higher-scoring candidates that reach the filter stage
+- The BFRI and ACCS earnings items are small-caps not in the universe — need more large-cap EDGAR filings with Item 2.02 to test meaningfully
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
