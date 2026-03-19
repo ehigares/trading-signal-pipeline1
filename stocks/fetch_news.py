@@ -63,6 +63,7 @@ def now_est() -> str:
 
 def extract_ticker_from_parentheses(text: str) -> str:
     """Extract ticker from patterns like (NASDAQ: AAPL), (NYSE:MSFT), (Ticker: GOOG)."""
+    # Pattern 1: (NASDAQ: AAPL), (NYSE:MSFT), etc.
     patterns = [
         r'\((?:NASDAQ|NYSE|NYSEAMERICAN|OTC|AMEX|CBOE)\s*:\s*([A-Z]{1,5})\)',
         r'\(Ticker:\s*([A-Z]{1,5})\)',
@@ -72,6 +73,17 @@ def extract_ticker_from_parentheses(text: str) -> str:
         m = re.search(pat, text, re.IGNORECASE)
         if m:
             return m.group(1).upper()
+
+    # Pattern 2: Simple parenthetical ticker like (MRVL), (GOOG), (VAC)
+    # Must be 1-5 uppercase letters in parens, not common words
+    common_words = {"THE", "AND", "FOR", "ARE", "BUT", "NOT", "YOU", "ALL",
+                    "CAN", "HER", "WAS", "ONE", "OUR", "OUT", "HAS", "ITS",
+                    "CEO", "CFO", "COO", "IPO", "FDA", "GDP", "CPI", "SEC",
+                    "ETF", "DOJ", "FED", "GDP", "NYSE", "OTC", "RSS"}
+    m = re.search(r'\(([A-Z]{1,5})\)', text)
+    if m and m.group(1) not in common_words:
+        return m.group(1)
+
     return ""
 
 
