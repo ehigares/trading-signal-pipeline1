@@ -185,6 +185,22 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 4 — 2026-03-19
+**Status:** Ticker extraction improvement
+**Completed:**
+- Added Pattern 2 (simple parenthetical ticker matching) to `extract_ticker_from_parentheses()` in `stocks/fetch_news.py`. Copied exact logic from proven `options/fetch_options_news.py` `extract_ticker_from_text()` — matches `(AMD)`, `(NVDA)`, `(TSM)` etc. while excluding common words (CEO, FDA, SEC, etc.).
+- No call sites changed, no other files touched. Function name unchanged.
+- Deployed to Droplet and ran `fetch_news.py` once. This particular Yahoo RSS pull returned 0 headlines with parenthetical tickers (all earnings call summaries, no `(TICKER)` patterns). Pattern 2 regex confirmed working via manual test cases — `(GEV)`, `(AMD)`, `(ARCO)` all match correctly.
+- SEC EDGAR headlines like `(0000910612) (Filer)` correctly produce no false positives — digits don't match `[A-Z]` and mixed-case `Filer` doesn't match either.
+- Finviz `news.ashx` headlines never contain parenthetical tickers (general macro news only).
+**Issues encountered:**
+- Yahoo RSS feed content varies run to run. Previous diagnostics showed headlines with `(QBTS)`, `(GEV)`, `(AMD)`, `(TSM)`, `(ARCO)` — this run had none. The fix is correct but its impact depends on what Yahoo serves.
+**Next session should:**
+- Monitor next few pipeline runs to confirm Pattern 2 catches tickers when Yahoo serves headlines with `(TICKER)` patterns
+- Investigate whether Finviz `news.ashx` (general news) should be replaced with per-ticker `quote.ashx?t=TICKER` scraping for analyst upgrades — current URL returns zero analyst data
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
