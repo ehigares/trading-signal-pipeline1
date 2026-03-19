@@ -12,6 +12,7 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+import pandas as pd
 import yfinance as yf
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -32,6 +33,17 @@ MIN_STOCK_PRICE = 20.0          # dollars
 
 def now_edt() -> str:
     return datetime.now(EDT).isoformat(timespec="seconds")
+
+
+def _safe_float(val, default=0.0):
+    """Convert a value to float, returning default if NaN/None/invalid."""
+    if val is None:
+        return default
+    try:
+        f = float(val)
+        return default if math.isnan(f) else f
+    except (TypeError, ValueError):
+        return default
 
 
 def get_options_data(ticker_symbol: str) -> dict:
@@ -61,16 +73,12 @@ def get_options_data(ticker_symbol: str) -> dict:
         if calls.empty and puts.empty:
             return None
 
-        # Total options volume (calls + puts)
+        # Total options volume (calls + puts) — use fillna to handle NaN
         total_options_volume = 0
         if not calls.empty and "volume" in calls.columns:
-            total_options_volume += calls["volume"].sum()
+            total_options_volume += int(calls["volume"].fillna(0).sum())
         if not puts.empty and "volume" in puts.columns:
-            total_options_volume += puts["volume"].sum()
-
-        # Handle NaN
-        if math.isnan(total_options_volume):
-            total_options_volume = 0
+            total_options_volume += int(puts["volume"].fillna(0).sum())
 
         # Bid/Ask spread — check ATM options (closest strike to stock price)
         bid_ask_spread = 999.0
@@ -79,8 +87,8 @@ def get_options_data(ticker_symbol: str) -> dict:
                 continue
             atm_idx = (df["strike"] - stock_price).abs().idxmin()
             atm_row = df.loc[atm_idx]
-            bid = atm_row.get("bid", 0) or 0
-            ask = atm_row.get("ask", 0) or 0
+            bid = _safe_float(atm_row.get("bid", 0))
+            ask = _safe_float(atm_row.get("ask", 0))
             if ask > 0 and bid > 0:
                 spread = ask - bid
                 bid_ask_spread = min(bid_ask_spread, spread)
@@ -90,11 +98,9 @@ def get_options_data(ticker_symbol: str) -> dict:
         current_iv = None
         if not calls.empty and "impliedVolatility" in calls.columns:
             atm_idx = (calls["strike"] - stock_price).abs().idxmin()
-            current_iv = calls.loc[atm_idx, "impliedVolatility"]
-            if current_iv and not math.isnan(current_iv):
-                current_iv = current_iv * 100  # Convert to percentage
-            else:
-                current_iv = None
+            raw_iv = _safe_float(calls.loc[atm_idx, "impliedVolatility"])
+            if raw_iv > 0:
+                current_iv = raw_iv * 100  # Convert to percentage
 
         # Approximate IV Rank using historical volatility from info
         # If we can't get 52-week IV data, use a rough estimate
@@ -121,22 +127,26 @@ def get_options_data(ticker_symbol: str) -> dict:
             call_atm_idx = (calls["strike"] - stock_price).abs().idxmin()
             put_atm_idx = (puts["strike"] - stock_price).abs().idxmin()
 
-            call_mid = 0
-            put_mid = 0
+            call_bid = _safe_float(calls.loc[call_atm_idx, "bid"] if "bid" in calls.columns else 0)
+            call_ask = _safe_float(calls.loc[call_atm_idx, "ask"] if "ask" in calls.columns else 0)
+            call_mid = (call_bid + call_ask) / 2 if call_bid > 0 and call_ask > 0 else 0
 
-            call_bid = calls.loc[call_atm_idx, "bid"] if "bid" in calls.columns else 0
-            call_ask = calls.loc[call_atm_idx, "ask"] if "ask" in calls.columns else 0
-            if call_bid and call_ask and not math.isnan(call_bid) and not math.isnan(call_ask):
-                call_mid = (call_bid + call_ask) / 2
-
-            put_bid = puts.loc[put_atm_idx, "bid"] if "bid" in puts.columns else 0
-            put_ask = puts.loc[put_atm_idx, "ask"] if "ask" in puts.columns else 0
-            if put_bid and put_ask and not math.isnan(put_bid) and not math.isnan(put_ask):
-                put_mid = (put_bid + put_ask) / 2
+            put_bid = _safe_float(puts.loc[put_atm_idx, "bid"] if "bid" in puts.columns else 0)
+            put_ask = _safe_float(puts.loc[put_atm_idx, "ask"] if "ask" in puts.columns else 0)
+            put_mid = (put_bid + put_ask) / 2 if put_bid > 0 and put_ask > 0 else 0
 
             straddle_price = call_mid + put_mid
             if stock_price > 0:
                 expected_move_pct = (straddle_price / stock_price) * 100
+
+        # Debug log: show raw values before filtering
+        spread_str = f"${bid_ask_spread:.2f}" if bid_ask_spread < 999 else "N/A"
+        iv_str = f"{current_iv:.1f}%" if current_iv is not None else "N/A"
+        ivr_str = f"{iv_rank:.1f}%" if iv_rank is not None else "N/A"
+        print(f"    [DEBUG] {ticker_symbol}: price=${stock_price:.2f}, "
+              f"opts_vol={total_options_volume}, spread={spread_str}, "
+              f"iv={iv_str}, iv_rank={ivr_str}, "
+              f"exp_move={expected_move_pct:.1f}%", flush=True)
 
         return {
             "stock_price": round(stock_price, 2),

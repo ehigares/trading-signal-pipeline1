@@ -145,13 +145,31 @@ def extract_ticker_from_text(text: str) -> str:
     return ""
 
 
+def _lookup_ticker_by_cik(cik: str, company_name: str) -> str:
+    """Try to look up a ticker symbol from a CIK number via SEC EDGAR company API."""
+    try:
+        url = f"https://data.sec.gov/submissions/CIK{cik.zfill(10)}.json"
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            tickers_list = data.get("tickers", [])
+            if tickers_list:
+                return tickers_list[0].upper()
+    except Exception:
+        pass
+    return ""
+
+
 def fetch_sec_edgar() -> list[dict]:
     """Scrape SEC EDGAR 8-K RSS feed for earnings, M&A, material events."""
     items = []
     try:
         resp = requests.get(SEC_EDGAR_URL, headers=HEADERS, timeout=15)
+        print(f"    [DEBUG] SEC EDGAR response: status={resp.status_code}, "
+              f"length={len(resp.text)}", flush=True)
         resp.raise_for_status()
         feed = feedparser.parse(resp.text)
+        print(f"    [DEBUG] SEC EDGAR feed entries: {len(feed.entries)}", flush=True)
         for entry in feed.entries[:40]:
             title = entry.get("title", "")
             link = entry.get("link", "")
@@ -159,11 +177,18 @@ def fetch_sec_edgar() -> list[dict]:
             summary = entry.get("summary", "")
 
             company = ""
-            title_match = re.search(r"8-K(?:/A)?\s*-\s*(.+?)\s*\(\d+\)", title)
+            cik = ""
+            title_match = re.search(r"8-K(?:/A)?\s*-\s*(.+?)\s*\((\d+)\)", title)
             if title_match:
                 company = title_match.group(1).strip()
+                cik = title_match.group(2).strip()
 
+            # Try to extract ticker from title/summary text first
             ticker = extract_ticker_from_text(f"{title} {summary}")
+
+            # If no ticker found and we have a CIK, look it up
+            if not ticker and cik:
+                ticker = _lookup_ticker_by_cik(cik, company)
 
             published = now_edt()
             if updated:
@@ -187,7 +212,7 @@ def fetch_sec_edgar() -> list[dict]:
                 "url": link,
             })
     except Exception as e:
-        print(f"[ERROR] SEC EDGAR scrape failed: {e}", file=sys.stderr)
+        print(f"[ERROR] SEC EDGAR scrape failed: {e}", file=sys.stderr, flush=True)
     return items
 
 
@@ -345,9 +370,9 @@ def main():
     ]
 
     for name, fetcher in sources:
-        print(f"  Fetching {name}...", end=" ")
+        print(f"  Fetching {name}...", end=" ", flush=True)
         result = fetcher()
-        print(f"{len(result)} items")
+        print(f"{len(result)} items", flush=True)
         all_items.extend(result)
 
     if not all_items:

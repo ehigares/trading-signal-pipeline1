@@ -6,13 +6,14 @@ Outputs best_signal.json or no_signal.json.
 
 import json
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from io import StringIO
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
 
-EST = timezone(timedelta(hours=-5))
+EASTERN = ZoneInfo("America/New_York")
 
 # ── Catalyst scoring ────────────────────────────────────────────────
 CATALYST_SCORES = {
@@ -33,8 +34,8 @@ NASDAQ100_URL = "https://en.wikipedia.org/wiki/Nasdaq-100#Components"
 RUSSELL1000_URL = "https://en.wikipedia.org/wiki/Russell_1000_Index"
 
 
-def now_est() -> datetime:
-    return datetime.now(EST)
+def now_eastern() -> datetime:
+    return datetime.now(EASTERN)
 
 
 def _fetch_wiki_html(url: str) -> str:
@@ -120,7 +121,7 @@ def score_catalyst(catalyst_type: str, headline: str) -> int:
 
 def check_trading_rules() -> str | None:
     """Check time-based trading rules. Returns error message or None if OK."""
-    now = now_est()
+    now = now_eastern()
     hour, minute = now.hour, now.minute
     time_val = hour * 60 + minute
 
@@ -218,7 +219,7 @@ def apply_filters(ticker: str, is_etf: bool) -> tuple[bool, str]:
                     earnings_date = cal["Earnings Date"].iloc[0]
 
                 if earnings_date:
-                    today = now_est().date()
+                    today = now_eastern().date()
                     if hasattr(earnings_date, "date"):
                         earnings_date = earnings_date.date()
                     if earnings_date == today:
@@ -234,7 +235,7 @@ def apply_filters(ticker: str, is_etf: bool) -> tuple[bool, str]:
 
 def main():
     """Read news.json, score and filter, output best_signal.json."""
-    now = now_est()
+    now = now_eastern()
     print(f"[{now.isoformat(timespec='seconds')}] brain.py starting...")
 
     # ── Load news.json ──

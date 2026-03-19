@@ -36,24 +36,28 @@ load_dotenv(SCRIPT_DIR.parent / ".env")
 
 SLACK_WEBHOOK = os.getenv("OPTIONS_SLACK_WEBHOOK_URL", "")
 
-# Set up file logger
+# Set up logger with file + console handlers (no basicConfig to avoid duplicates)
 log_path = SCRIPT_DIR / "options.log"
-logging.basicConfig(
-    filename=str(log_path),
-    level=logging.INFO,
-    format="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 logger = logging.getLogger("options_main")
+logger.setLevel(logging.INFO)
+logger.propagate = False  # Prevent duplicate messages via root logger
 
-# Also log to console
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(logging.Formatter(
+_log_fmt = logging.Formatter(
     "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-))
-logger.addHandler(console_handler)
+)
+
+# File handler
+_file_handler = logging.FileHandler(str(log_path))
+_file_handler.setLevel(logging.INFO)
+_file_handler.setFormatter(_log_fmt)
+logger.addHandler(_file_handler)
+
+# Console handler
+_console_handler = logging.StreamHandler(sys.stdout)
+_console_handler.setLevel(logging.INFO)
+_console_handler.setFormatter(_log_fmt)
+logger.addHandler(_console_handler)
 
 # Pipeline scripts in execution order
 SCRIPTS = [
