@@ -21,11 +21,11 @@ EDT = timezone(timedelta(hours=-4))
 # Pre-approved ETFs that skip Market Cap filter
 ETFS = {"SPY", "QQQ", "IWM"}
 
-# Filter thresholds from CLAUDE.md
+# Filter thresholds
 MIN_OPTIONS_VOLUME = 500        # contracts/day
-MAX_BID_ASK_SPREAD = 0.20       # dollars
-IV_RANK_MIN = 20.0              # percent
-IV_RANK_MAX = 60.0              # percent
+MAX_SPREAD_PCT = 25.0           # percent of mid-price
+IV_RV_RATIO_MIN = 0.8           # current IV / realized vol
+IV_RV_RATIO_MAX = 2.5           # current IV / realized vol
 MIN_EXPECTED_MOVE_PCT = 5.0     # percent
 MIN_MARKET_CAP = 20_000_000_000 # $20 billion
 MIN_STOCK_PRICE = 20.0          # dollars
@@ -80,8 +80,8 @@ def get_options_data(ticker_symbol: str) -> dict:
         if not puts.empty and "volume" in puts.columns:
             total_options_volume += int(puts["volume"].fillna(0).sum())
 
-        # Bid/Ask spread — check ATM options (closest strike to stock price)
-        bid_ask_spread = 999.0
+        # Bid/Ask spread as percentage of mid-price
+        spread_pct = 999.0
         for df in [calls, puts]:
             if df.empty:
                 continue
@@ -90,11 +90,11 @@ def get_options_data(ticker_symbol: str) -> dict:
             bid = _safe_float(atm_row.get("bid", 0))
             ask = _safe_float(atm_row.get("ask", 0))
             if ask > 0 and bid > 0:
-                spread = ask - bid
-                bid_ask_spread = min(bid_ask_spread, spread)
+                mid = (bid + ask) / 2
+                pct = ((ask - bid) / mid) * 100
+                spread_pct = min(spread_pct, pct)
 
-        # IV Rank calculation using implied volatility from options chain
-        # Use ATM call IV as current IV proxy
+        # Current IV from ATM call implied volatility
         current_iv = None
         if not calls.empty and "impliedVolatility" in calls.columns:
             atm_idx = (calls["strike"] - stock_price).abs().idxmin()
@@ -102,24 +102,16 @@ def get_options_data(ticker_symbol: str) -> dict:
             if raw_iv > 0:
                 current_iv = raw_iv * 100  # Convert to percentage
 
-        # Approximate IV Rank using historical volatility from info
-        # If we can't get 52-week IV data, use a rough estimate
-        iv_rank = None
+        # IV / Realized Vol ratio
+        iv_rv_ratio = None
+        realized_vol = None
         if current_iv is not None:
-            # Try to get historical data for IV rank approximation
             hist = ticker.history(period="1y")
             if not hist.empty and len(hist) > 20:
-                # Use realized volatility as proxy for historical IV range
                 returns = hist["Close"].pct_change().dropna()
                 realized_vol = returns.std() * (252 ** 0.5) * 100  # Annualized %
-
-                # Rough IV rank: where current IV sits relative to realized vol range
-                # This is an approximation; true IV rank needs historical IV data
-                iv_high = realized_vol * 1.5
-                iv_low = realized_vol * 0.5
-                if iv_high > iv_low:
-                    iv_rank = ((current_iv - iv_low) / (iv_high - iv_low)) * 100
-                    iv_rank = max(0, min(100, iv_rank))
+                if realized_vol > 0:
+                    iv_rv_ratio = current_iv / realized_vol
 
         # Expected move: ATM straddle price / stock price
         expected_move_pct = 0.0
@@ -140,22 +132,24 @@ def get_options_data(ticker_symbol: str) -> dict:
                 expected_move_pct = (straddle_price / stock_price) * 100
 
         # Debug log: show raw values before filtering
-        spread_str = f"${bid_ask_spread:.2f}" if bid_ask_spread < 999 else "N/A"
+        spread_str = f"{spread_pct:.1f}%" if spread_pct < 999 else "N/A"
         iv_str = f"{current_iv:.1f}%" if current_iv is not None else "N/A"
-        ivr_str = f"{iv_rank:.1f}%" if iv_rank is not None else "N/A"
+        rv_str = f"{realized_vol:.1f}%" if realized_vol is not None else "N/A"
+        ratio_str = f"{iv_rv_ratio:.2f}" if iv_rv_ratio is not None else "N/A"
         print(f"    [DEBUG] {ticker_symbol}: price=${stock_price:.2f}, "
               f"opts_vol={total_options_volume}, spread={spread_str}, "
-              f"iv={iv_str}, iv_rank={ivr_str}, "
+              f"iv={iv_str}, rv={rv_str}, iv/rv={ratio_str}, "
               f"exp_move={expected_move_pct:.1f}%", flush=True)
 
         return {
             "stock_price": round(stock_price, 2),
             "market_cap": market_cap,
             "options_volume": int(total_options_volume),
-            "bid_ask_spread": round(bid_ask_spread, 2) if bid_ask_spread < 999 else None,
-            "iv_rank": round(iv_rank, 1) if iv_rank is not None else None,
+            "spread_pct": round(spread_pct, 1) if spread_pct < 999 else None,
+            "iv_rv_ratio": round(iv_rv_ratio, 2) if iv_rv_ratio is not None else None,
             "expected_move_pct": round(expected_move_pct, 1),
             "current_iv": round(current_iv, 1) if current_iv is not None else None,
+            "realized_vol": round(realized_vol, 1) if realized_vol is not None else None,
         }
 
     except Exception as e:
@@ -171,14 +165,14 @@ def apply_filters(ticker_symbol: str, data: dict) -> list[str]:
     if data["options_volume"] < MIN_OPTIONS_VOLUME:
         failures.append(f"options_volume={data['options_volume']}<{MIN_OPTIONS_VOLUME}")
 
-    if data["bid_ask_spread"] is None or data["bid_ask_spread"] > MAX_BID_ASK_SPREAD:
-        spread = data["bid_ask_spread"] or "N/A"
-        failures.append(f"bid_ask_spread={spread}>{MAX_BID_ASK_SPREAD}")
+    if data["spread_pct"] is None or data["spread_pct"] > MAX_SPREAD_PCT:
+        spread = f"{data['spread_pct']:.1f}%" if data["spread_pct"] is not None else "N/A"
+        failures.append(f"spread_pct={spread}>{MAX_SPREAD_PCT}%")
 
-    if data["iv_rank"] is None:
-        failures.append("iv_rank=unavailable")
-    elif data["iv_rank"] < IV_RANK_MIN or data["iv_rank"] > IV_RANK_MAX:
-        failures.append(f"iv_rank={data['iv_rank']} outside {IV_RANK_MIN}-{IV_RANK_MAX}")
+    if data["iv_rv_ratio"] is None:
+        failures.append("iv_rv_ratio=unavailable")
+    elif data["iv_rv_ratio"] < IV_RV_RATIO_MIN or data["iv_rv_ratio"] > IV_RV_RATIO_MAX:
+        failures.append(f"iv_rv_ratio={data['iv_rv_ratio']} outside {IV_RV_RATIO_MIN}-{IV_RV_RATIO_MAX}")
 
     if data["expected_move_pct"] < MIN_EXPECTED_MOVE_PCT:
         failures.append(f"expected_move={data['expected_move_pct']}%<{MIN_EXPECTED_MOVE_PCT}%")
@@ -258,8 +252,8 @@ def main():
             "stock_price": data["stock_price"],
             "market_cap": data["market_cap"],
             "options_volume": data["options_volume"],
-            "iv_rank": data["iv_rank"],
-            "bid_ask_spread": data["bid_ask_spread"],
+            "iv_rv_ratio": data["iv_rv_ratio"],
+            "spread_pct": data["spread_pct"],
             "expected_move_pct": data["expected_move_pct"],
             "catalyst_type": item.get("catalyst_type", "OTHER"),
             "headline": item.get("headline", ""),
