@@ -171,6 +171,20 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 3 — 2026-03-19
+**Status:** Bug fix session
+**Completed:**
+- Fixed timezone bug in brain.py — replaced hardcoded `EST = timezone(timedelta(hours=-5))` with `EASTERN = ZoneInfo("America/New_York")` so EST/EDT transitions are handled automatically. The 9:15 AM EDT cron run was being skipped because brain.py thought it was 8:15 AM EST.
+- Pushed fix to GitHub, pulled to Droplet, ran full pipeline on Droplet — verified brain.py now reports correct EDT time (12:16 PM EDT vs old 11:16 AM EST).
+**Issues encountered:**
+- None — straightforward fix.
+**Next session should:**
+- Configure cron jobs on Trading Droplet (Phase 6 still incomplete)
+- Run live test at 9:15am on a market day to confirm the timezone fix works for the cron job
+- Monitor for 3 consecutive trading days
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
@@ -187,6 +201,7 @@ Claude Code must add an entry here after every session.
 
 ## Known Issues & Blockers
 - ~~**n8n Google Sheets credential:** RESOLVED — credential linked, API enabled, sheet tab created, test row confirmed in Google Sheet.~~
+- ~~**Timezone bug (brain.py):** RESOLVED — replaced hardcoded UTC-5 with ZoneInfo("America/New_York") for automatic EST/EDT handling.~~
 
 ---
 
