@@ -266,6 +266,30 @@ Claude Code must add an entry here after every session.
 - FDX is a large-cap S&P 500 stock with Item 2.02 earnings — good test case for full pipeline
 
 ---
+## Session 5 — 2026-03-19
+**Status:** Filter recalibration — spread percentage + IV/RV ratio
+**Completed:**
+- Replaced absolute bid/ask spread filter ($0.20) with spread as percentage of mid-price (25% threshold). A $356 stock like FDX now shows spread=7.6% (PASS) instead of spread=$2.05 (was auto-FAIL).
+- Replaced fake IV Rank approximation (1.5x/0.5x realized vol range → always 100%) with IV/Realized Vol ratio (threshold 0.8-2.5). Directly measures whether current IV is cheap or expensive relative to historical. Removed iv_high, iv_low, iv_rank variables entirely.
+- Deployed to Droplet and ran options_universe.py against current options_news.json. Results: **0 passed, 32 rejected** (same pass count as before, but different rejection reasons — filters now correctly differentiate liquid from illiquid).
+- **FDX** (large-cap, $84B, EARNINGS_BEAT): spread=7.6% PASS, iv/rv=2.75 FAIL (just above 2.5 ceiling), exp_move=5.4% PASS. Only fails IV/RV by 0.25 — earnings just spiked IV. Would have passed under the old filters if IV Rank weren't broken.
+- **CVS** (large-cap, $90B+, officer change): spread=22.2% PASS, iv/rv=1.17 PASS. Only fails expected_move=2.0%<5%. Both new filters work correctly for this large-cap.
+- **SLS** (small-cap, $0.9B): spread=40.0% FAIL, iv/rv=0.96 PASS. Correctly rejected by spread % — $0.25 dollar spread on a $0.47 option is 52% of the contract.
+- **SKYH** (micro-cap, $0.7B): spread=56.0% FAIL, iv/rv=2.96 FAIL. Correctly rejected on multiple grounds.
+
+**Large-cap tickers (>$20B market cap) that failed — baseline data:**
+  - **FDX** ($84B): iv_rv_ratio=2.75 outside 0.8-2.5 (only failure)
+  - **CVS** ($90B+): expected_move=2.0%<5.0% (only failure)
+  - **LNG** ($66B+): spread=49.4%>25%, expected_move=3.1%<5.0%
+  - **FITB** ($28B+): spread=120.0%>25%, expected_move=4.2%<5.0%
+
+**Issues encountered:**
+- FDX at iv/rv=2.75 is 10% above the 2.5 ceiling. Post-earnings IV elevation is expected and temporary. May need to consider a slightly wider range (0.8-3.0) or a post-earnings exception, but this should be data-driven after more observations.
+**Next session should:**
+- Run the full options pipeline end-to-end to verify options_brain.py and downstream scripts handle the new field names (iv_rv_ratio, spread_pct instead of iv_rank, bid_ask_spread)
+- Monitor the next few market mornings to see if any tickers pass all filters with the recalibrated thresholds
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
