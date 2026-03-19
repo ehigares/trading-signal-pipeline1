@@ -55,6 +55,14 @@ TIER1_BANKS = [
 
 def classify_options_catalyst(headline: str) -> str:
     """Classify a headline into an options-specific catalyst type."""
+    # SEC EDGAR Item numbers — definitive, check first
+    if "Item 2.02" in headline:
+        return "EARNINGS_BEAT"
+    if "Item 1.01" in headline:
+        return "MA_ANNOUNCEMENT"
+    if "Item 5.02" in headline:
+        return "ANALYST_UPGRADE"
+
     h = headline.lower()
 
     # Earnings beat/miss
