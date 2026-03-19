@@ -87,6 +87,21 @@ def extract_ticker_from_parentheses(text: str) -> str:
     return ""
 
 
+def _lookup_ticker_by_cik(cik: str, company_name: str) -> str:
+    """Try to look up a ticker symbol from a CIK number via SEC EDGAR company API."""
+    try:
+        url = f"https://data.sec.gov/submissions/CIK{cik.zfill(10)}.json"
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            tickers_list = data.get("tickers", [])
+            if tickers_list:
+                return tickers_list[0].upper()
+    except Exception:
+        pass
+    return ""
+
+
 def fetch_sec_edgar() -> list[dict]:
     """Scrape SEC EDGAR 8-K RSS feed."""
     items = []
@@ -102,12 +117,18 @@ def fetch_sec_edgar() -> list[dict]:
 
             # SEC titles: "8-K - Company Name (0001234567) (Filer)"
             company = ""
-            title_match = re.search(r"8-K(?:/A)?\s*-\s*(.+?)\s*\(\d+\)", title)
+            cik = ""
+            title_match = re.search(r"8-K(?:/A)?\s*-\s*(.+?)\s*\((\d+)\)", title)
             if title_match:
                 company = title_match.group(1).strip()
+                cik = title_match.group(2).strip()
 
             # Try to extract ticker from summary or title
             ticker = extract_ticker_from_parentheses(f"{title} {summary}")
+
+            # If no ticker found and we have a CIK, look it up
+            if not ticker and cik:
+                ticker = _lookup_ticker_by_cik(cik, company)
 
             # Parse timestamp
             timestamp = now_est()
