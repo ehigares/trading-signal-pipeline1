@@ -38,6 +38,14 @@ YAHOO_RSS_URL = "https://finance.yahoo.com/news/rssindex"
 
 def classify_catalyst(headline: str) -> str:
     """Classify a headline into a catalyst type."""
+    # SEC EDGAR Item numbers — definitive, check first
+    if "Item 2.02" in headline:
+        return "earnings"
+    if "Item 1.01" in headline:
+        return "merger"
+    if "Item 5.02" in headline:
+        return "leadership"
+
     h = headline.lower()
     if any(w in h for w in ["earnings", "revenue", "eps", "quarterly results",
                              "q1 ", "q2 ", "q3 ", "q4 ", " profit", " beat", " miss",
