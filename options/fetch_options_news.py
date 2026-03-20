@@ -1,6 +1,6 @@
 """
-fetch_options_news.py — Scrapes 4 news sources for options-relevant catalysts.
-Sources: SEC EDGAR 8-K RSS, Finviz (tier-1 analyst only), Benzinga RSS, Yahoo Finance RSS.
+fetch_options_news.py — Fetches 4 news sources for options-relevant catalysts.
+Sources: SEC EDGAR 8-K RSS, Benzinga Ratings API, Benzinga News API, Yahoo Finance RSS.
 Focus: events that cause 5%+ moves in the underlying stock.
 Saves output to options_news.json.
 """
@@ -9,12 +9,16 @@ import json
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Resolve paths relative to this script's directory
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -40,17 +44,30 @@ SEC_EDGAR_URL = (
     "https://www.sec.gov/cgi-bin/browse-edgar"
     "?action=getcurrent&type=8-K&dateb=&owner=include&count=40&output=atom"
 )
-FINVIZ_URL = "https://finviz.com/news.ashx"
-BENZINGA_RSS_URL = "https://www.benzinga.com/feed"
 YAHOO_RSS_URL = "https://finance.yahoo.com/news/rssindex"
 
-# Tier-1 banks — only count analyst upgrades/downgrades from these firms
-TIER1_BANKS = [
-    "goldman sachs", "morgan stanley", "jpmorgan", "jp morgan",
-    "bank of america", "citigroup", "citi", "wells fargo",
-    "ubs", "barclays", "deutsche bank", "credit suisse",
-    "jefferies", "piper sandler", "needham", "cowen", "oppenheimer",
-]
+BENZINGA_API_KEY = os.getenv("BENZINGA_API_KEY", "")
+BENZINGA_RATINGS_URL = "https://api.benzinga.com/api/v2/calendar/ratings"
+BENZINGA_NEWS_URL = "https://api.benzinga.com/api/v2/news"
+
+BENZINGA_TICKERS = (
+    "NVDA,TSLA,AMD,META,GOOGL,MSFT,AMZN,AAPL,SPY,QQQ,NFLX,CRM,SHOP,COIN,"
+    "PLTR,ARM,SMCI,UBER,ABNB,DASH,RBLX,SPOT,SNAP,MU,INTC,QCOM,AVGO,TSM,"
+    "ASML,ORCL,SAP,IBM,ADBE,NOW,WDAY,ZM,DOCU,"
+    "MRVL,FDX,COST,TGT,HD,LOW,WMT,JPM,GS,BAC,XOM,CVX,LLY,UNH,JNJ"
+)
+
+# Tier-1 firms — only count analyst upgrades/downgrades from these
+TIER1_FIRMS = {
+    "Goldman Sachs", "Morgan Stanley", "JPMorgan", "JP Morgan",
+    "Bank of America", "Citigroup", "Wells Fargo", "UBS", "Barclays",
+    "Deutsche Bank", "Credit Suisse", "Jefferies", "Piper Sandler",
+    "Needham", "Cowen", "Oppenheimer", "RBC Capital", "Tigress Financial",
+    "BMO Capital", "BTIG", "Truist", "Mizuho",
+}
+
+# Lowercase version for headline matching (used by is_tier1_analyst)
+TIER1_BANKS = [f.lower() for f in TIER1_FIRMS]
 
 
 def classify_options_catalyst(headline: str) -> str:
@@ -224,107 +241,157 @@ def fetch_sec_edgar() -> list[dict]:
     return items
 
 
-def fetch_finviz() -> list[dict]:
-    """Scrape Finviz for analyst upgrades/downgrades from tier-1 banks only."""
+def fetch_benzinga_ratings() -> list[dict]:
+    """Fetch today's analyst ratings from Benzinga API, filtered to tier-1 firms."""
     items = []
+    if not BENZINGA_API_KEY:
+        print("[WARN] BENZINGA_API_KEY not set — skipping Benzinga Ratings", file=sys.stderr)
+        return items
     try:
-        resp = requests.get(FINVIZ_URL, headers=BROWSER_HEADERS, timeout=15)
+        resp = requests.get(BENZINGA_RATINGS_URL, params={
+            "token": BENZINGA_API_KEY,
+            "pageSize": 50,
+        }, headers=HEADERS, timeout=20)
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
 
-        seen_headlines = set()
-        news_tables = soup.select("table")
-        for table in news_tables:
-            rows = table.find_all("tr")
-            for row in rows:
-                cells = row.find_all("td")
-                if len(cells) < 2:
-                    continue
+        today_str = datetime.now(EDT).strftime("%Y-%m-%d")
 
-                link_el = row.find("a", href=True)
-                if not link_el:
-                    continue
+        root = ET.fromstring(resp.text)
+        ratings_el = root.find("ratings")
+        if ratings_el is None:
+            return items
 
-                headline = link_el.get_text(strip=True)
-                url = link_el.get("href", "")
-                if not headline or len(headline) < 10:
-                    continue
-                if headline in seen_headlines:
-                    continue
-                seen_headlines.add(headline)
+        for item in ratings_el.iter("item"):
+            # Filter to today only
+            date_el = item.find("date")
+            if date_el is None or not date_el.text:
+                continue
+            if date_el.text.strip() != today_str:
+                continue
 
+            # Filter to tier-1 firms only
+            analyst_el = item.find("analyst")
+            firm = analyst_el.text.strip() if analyst_el is not None and analyst_el.text else ""
+            if not any(t1 in firm for t1 in TIER1_FIRMS):
+                continue
+
+            ticker_el = item.find("ticker")
+            ticker = ticker_el.text.strip().upper() if ticker_el is not None and ticker_el.text else ""
+            if not ticker:
+                continue
+
+            action_el = item.find("action_company")
+            action = action_el.text.strip() if action_el is not None and action_el.text else ""
+
+            rating_cur_el = item.find("rating_current")
+            rating_cur = rating_cur_el.text.strip() if rating_cur_el is not None and rating_cur_el.text else ""
+
+            rating_pri_el = item.find("rating_prior")
+            rating_pri = rating_pri_el.text.strip() if rating_pri_el is not None and rating_pri_el.text else ""
+
+            pt_cur_el = item.find("pt_current")
+            pt_cur = pt_cur_el.text.strip() if pt_cur_el is not None and pt_cur_el.text else ""
+
+            pt_pri_el = item.find("pt_prior")
+            pt_pri = pt_pri_el.text.strip() if pt_pri_el is not None and pt_pri_el.text else ""
+
+            url_el = item.find("url")
+            url = url_el.text.strip() if url_el is not None and url_el.text else ""
+
+            headline = f"{firm} {action} {ticker} — Rating: {rating_pri} -> {rating_cur}, PT: ${pt_pri} -> ${pt_cur}"
+            summary = f"{firm} {action} {ticker} — {rating_pri} -> {rating_cur}"
+
+            # Override catalyst_type based on definitive action
+            if "Upgrades" in action:
+                catalyst_type = "ANALYST_UPGRADE"
+            elif "Downgrades" in action:
+                catalyst_type = "ANALYST_DOWNGRADE"
+            else:
                 catalyst_type = classify_options_catalyst(headline)
-
-                # For analyst actions, only keep tier-1 bank mentions
-                if catalyst_type in ("ANALYST_UPGRADE", "ANALYST_DOWNGRADE"):
-                    if not is_tier1_analyst(headline):
-                        continue
-
-                raw_time = cells[0].get_text(strip=True)
-                published = now_edt()
-                for fmt in ["%b-%d-%y %I:%M%p", "%I:%M%p", "%b-%d-%y"]:
-                    try:
-                        dt = datetime.strptime(raw_time, fmt)
-                        if dt.year < 2000:
-                            dt = dt.replace(year=datetime.now().year)
-                        dt = dt.replace(tzinfo=EDT)
-                        published = dt.isoformat(timespec="seconds")
-                        break
-                    except (ValueError, TypeError):
-                        continue
-
-                ticker = extract_ticker_from_text(headline)
-
-                items.append({
-                    "ticker": ticker,
-                    "source": "FINVIZ",
-                    "priority": "HIGH",
-                    "headline": headline[:200],
-                    "catalyst_type": catalyst_type,
-                    "summary": "",
-                    "published": published,
-                    "url": url,
-                })
-    except Exception as e:
-        print(f"[ERROR] Finviz scrape failed: {e}", file=sys.stderr)
-    return items
-
-
-def fetch_benzinga() -> list[dict]:
-    """Parse Benzinga RSS feed for pre-market gap-up/gap-down movers with catalyst."""
-    items = []
-    try:
-        resp = requests.get(BENZINGA_RSS_URL, headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        feed = feedparser.parse(resp.text)
-        for entry in feed.entries[:30]:
-            title = entry.get("title", "")
-            link = entry.get("link", "")
-            summary = entry.get("summary", "")
-
-            published = now_edt()
-            if hasattr(entry, "published_parsed") and entry.published_parsed:
-                try:
-                    dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-                    published = dt.astimezone(EDT).isoformat(timespec="seconds")
-                except (ValueError, TypeError, AttributeError):
-                    pass
-
-            ticker = extract_ticker_from_text(f"{title} {summary}")
-            catalyst_type = classify_options_catalyst(f"{title} {summary}")
 
             items.append({
                 "ticker": ticker,
-                "source": "BENZINGA",
+                "source": "BENZINGA_RATINGS",
+                "priority": "HIGH",
+                "headline": headline[:200],
+                "catalyst_type": catalyst_type,
+                "summary": summary,
+                "published": now_edt(),
+                "url": url,
+            })
+    except Exception as e:
+        print(f"[ERROR] Benzinga Ratings fetch failed: {e}", file=sys.stderr)
+    return items
+
+
+def fetch_benzinga_news() -> list[dict]:
+    """Fetch Benzinga news headlines filtered to high-momentum tickers."""
+    items = []
+    if not BENZINGA_API_KEY:
+        print("[WARN] BENZINGA_API_KEY not set — skipping Benzinga News", file=sys.stderr)
+        return items
+    try:
+        resp = requests.get(BENZINGA_NEWS_URL, params={
+            "token": BENZINGA_API_KEY,
+            "pageSize": 50,
+            "displayOutput": "full",
+            "tickers": BENZINGA_TICKERS,
+        }, headers=HEADERS, timeout=20)
+        resp.raise_for_status()
+
+        today_str = datetime.now(EDT).strftime("%Y-%m-%d")
+
+        root = ET.fromstring(resp.text)
+        for item in root.iter("item"):
+            # Extract first ticker from stocks array
+            stocks_el = item.find("stocks")
+            if stocks_el is None:
+                continue
+            first_stock = stocks_el.find("item")
+            if first_stock is None:
+                continue
+            name_el = first_stock.find("name")
+            if name_el is None or not name_el.text:
+                continue
+            ticker = name_el.text.strip().upper()
+
+            title_el = item.find("title")
+            title = title_el.text.strip() if title_el is not None and title_el.text else ""
+            if not title:
+                continue
+
+            # Filter to today only
+            created_el = item.find("created")
+            published = now_edt()
+            if created_el is not None and created_el.text:
+                try:
+                    dt = datetime.strptime(created_el.text.strip(), "%a, %d %b %Y %H:%M:%S %z")
+                    published = dt.astimezone(EDT).isoformat(timespec="seconds")
+                    if dt.astimezone(EDT).strftime("%Y-%m-%d") != today_str:
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+            teaser_el = item.find("teaser")
+            teaser = teaser_el.text.strip() if teaser_el is not None and teaser_el.text else ""
+
+            url_el = item.find("url")
+            url = url_el.text.strip() if url_el is not None and url_el.text else ""
+
+            catalyst_type = classify_options_catalyst(f"{title} {teaser}")
+
+            items.append({
+                "ticker": ticker,
+                "source": "BENZINGA_NEWS",
                 "priority": "HIGH",
                 "headline": title[:200],
                 "catalyst_type": catalyst_type,
-                "summary": summary[:300] if summary else "",
+                "summary": teaser[:300] if teaser else "",
                 "published": published,
-                "url": link,
+                "url": url,
             })
     except Exception as e:
-        print(f"[ERROR] Benzinga scrape failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Benzinga News fetch failed: {e}", file=sys.stderr)
     return items
 
 
@@ -372,8 +439,8 @@ def main():
     all_items = []
     sources = [
         ("SEC EDGAR", fetch_sec_edgar),
-        ("Finviz", fetch_finviz),
-        ("Benzinga", fetch_benzinga),
+        ("Benzinga Ratings", fetch_benzinga_ratings),
+        ("Benzinga News", fetch_benzinga_news),
         ("Yahoo Finance", fetch_yahoo_finance),
     ]
 
