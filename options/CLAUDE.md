@@ -107,8 +107,8 @@ Focus on events that cause 5%+ moves in the underlying stock.
 | Source | What to Look For | Priority | Status |
 |---|---|---|---|
 | SEC EDGAR 8-K RSS | Post-earnings reports, M&A announcements, material events | HIGH | Active — CIK lookup + Item number classification working |
-| Finviz | General macro news (NOT analyst upgrades) | HIGH | **Broken** — wrong URL, pending Benzinga API replacement |
-| Benzinga Headlines RSS | Crypto price predictions (NOT equity news) | HIGH | **Broken** — free RSS returns crypto content, pending paid API |
+| Benzinga Ratings API | Analyst upgrades/downgrades with firm, rating, PT | HIGH | Active — tier-1 firm filter, today-only date filter |
+| Benzinga News API | Breaking news filtered to 52 high-momentum tickers | HIGH | Active — 100% ticker rate, summary populated from teaser |
 | Yahoo Finance RSS | Macro events, analyst mentions, market context | MEDIUM | Partially active — Pattern 2 ticker extraction working, content varies |
 
 ### SEC EDGAR RSS URL
@@ -120,29 +120,12 @@ classify_options_catalyst() checks SEC EDGAR Item numbers before keyword matchin
 - Item 1.01 (Material Definitive Agreement) → `MA_ANNOUNCEMENT` type
 - Item 5.02 (Officer Departure/Appointment) → `ANALYST_UPGRADE` type
 
-### Benzinga RSS URL
-https://www.benzinga.com/feed
-**Note:** This is the free RSS feed which currently returns only crypto price
-prediction articles (e.g. "Toncoin (TON) Price Prediction 2025, 2026, 2030").
-The original URL from the build spec (`/feeds/news.xml`) returns 404.
-Benzinga's analyst ratings data requires their paid API. Pending replacement
-when Benzinga API trial is approved.
-
-### Finviz URL
-https://finviz.com/news.ashx
-**Note:** This URL returns 180 general macro news headlines with zero tickers
-and zero analyst upgrade/downgrade data. Finviz's actual analyst data lives
-on per-ticker quote pages (`quote.ashx?t=NVDA`) which are not RSS-parseable.
-Pending replacement with Benzinga API.
-
-### Tier-1 Banks for Analyst Upgrades (pending Benzinga)
+### Tier-1 Banks for Analyst Upgrades
 Only count upgrades/downgrades from these firms — ignore all others:
 Goldman Sachs, Morgan Stanley, JPMorgan, Bank of America, Citigroup,
 Wells Fargo, UBS, Barclays, Deutsche Bank, Credit Suisse, Jefferies,
-Piper Sandler, Needham, Cowen, Oppenheimer
-**Note:** This filter cannot be applied until a real analyst data source
-(Benzinga API) is integrated. Currently no source provides structured
-analyst firm + rating + price target data.
+Piper Sandler, Needham, Cowen, Oppenheimer, RBC Capital,
+Tigress Financial, BMO Capital, BTIG, Truist, Mizuho
 
 ---
 
@@ -412,22 +395,23 @@ git pull origin main
 ## Data Source Status
 | Source | Status | Details |
 |---|---|---|
-| SEC EDGAR | Active | CIK-to-ticker lookup working (29/40 items get tickers). Item number classification working (Item 2.02 → EARNINGS_BEAT, Item 1.01 → MA_ANNOUNCEMENT, Item 5.02 → ANALYST_UPGRADE). |
-| Benzinga | Broken | Current URL (`benzinga.com/feed`) returns crypto price prediction articles only (e.g. "Toncoin Price Prediction 2025"). Zero equity market news. Pending replacement with Benzinga paid API. |
-| Finviz | Broken | Scraping `finviz.com/news.ashx` which returns 180 general macro news headlines with zero tickers and zero analyst data. Same wrong URL issue as stocks pipeline. Pending Benzinga API replacement. |
-| Yahoo Finance | Partially active | Content varies run to run. Some pulls include headlines with parenthetical tickers like `(AMD)`, `(NVDA)`, `(TSM)` which Pattern 2 catches (16/30 tickers in best case). Other pulls have zero. Inconsistent. |
-| Benzinga API | Pending | Trial requested. Will replace both Benzinga free RSS and Finviz as the analyst upgrade/downgrade and pre-market movers source. Provides structured analyst actions with ticker, firm, rating, and price target. |
+| SEC EDGAR | Active | CIK-to-ticker lookup working (35/40 items get tickers). Item number classification working (Item 2.02 → EARNINGS_BEAT, Item 1.01 → MA_ANNOUNCEMENT, Item 5.02 → ANALYST_UPGRADE). |
+| Benzinga Ratings | Active | Calls `calendar/ratings` API, filters to today + 22 tier-1 firms. Returns structured analyst actions with ticker, firm, rating, price target. Source: `BENZINGA_RATINGS`. |
+| Benzinga News | Active | Calls `news` API filtered to 52 tickers (37 base + 15 options-specific). 100% ticker rate. Summary populated from teaser. Source: `BENZINGA_NEWS`. |
+| Yahoo Finance | Partially active | Content varies run to run. Some pulls include headlines with parenthetical tickers like `(AMD)`, `(NVDA)`, `(TSM)` which Pattern 2 catches. Inconsistent. |
 
 ---
 
 ## Known Issues and Pending Improvements
 
-1. **Benzinga URL returns crypto content** — `benzinga.com/feed` serves
-   cryptocurrency price predictions, not equity market news. Pending
-   replacement with Benzinga paid API when trial is approved.
+1. **Benzinga Ratings returns 0 items on slow days** — the today-only filter
+   means if no tier-1 firms publish ratings by the time the pipeline runs at
+   8:45am EDT, 0 items are returned. This is correct behavior. Monitor Monday
+   runs to confirm ratings appear on active trading days.
 
-2. **Finviz URL is wrong** — scraping general macro news instead of analyst
-   upgrades. Same issue as stocks pipeline. Pending Benzinga API replacement.
+2. **Benzinga News first-ticker may be an ETF** — the stocks array sometimes
+   lists an ETF before the primary company ticker. options_universe.py filters
+   by universe so non-target tickers are dropped. Acceptable.
 
 3. **Expected move threshold (5%) may be too strict for large-cap analyst
    upgrades** — CVS passed all other filters but failed expected_move at 2.0%.

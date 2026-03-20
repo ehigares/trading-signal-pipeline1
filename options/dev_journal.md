@@ -312,6 +312,36 @@ Claude Code must add an entry here after every session.
 - Run full pipeline end-to-end to verify downstream scripts handle new field names
 
 ---
+## Session 7 — 2026-03-20
+**Status:** Benzinga API integration — replaced two broken news sources
+**Completed:**
+- Replaced `fetch_finviz()` with `fetch_benzinga_ratings()` — calls Benzinga `calendar/ratings` API with `pageSize=50`, parses XML response, filters to today's date only, filters to 22 tier-1 analyst firms (added RBC Capital, Tigress Financial, BMO Capital, BTIG, Truist, Mizuho to existing list). Builds structured headline and summary. Overrides catalyst_type: Upgrades → ANALYST_UPGRADE, Downgrades → ANALYST_DOWNGRADE. Output source: `BENZINGA_RATINGS`.
+- Replaced `fetch_benzinga()` with `fetch_benzinga_news()` — calls Benzinga `news` API filtered to 52 tickers (37 base high-momentum + 15 options-specific: MRVL, FDX, COST, TGT, HD, LOW, WMT, JPM, GS, BAC, XOM, CVX, LLY, UNH, JNJ). Populates summary from teaser field (unlike stocks version which leaves it empty). Output source: `BENZINGA_NEWS`.
+- Added `xml.etree.ElementTree` import and `dotenv` load. Uses shared `BENZINGA_API_KEY` from .env.
+- Updated `main()` source list: SEC EDGAR, Benzinga Ratings, Benzinga News, Yahoo Finance.
+- Removed all Finviz and old Benzinga RSS code.
+- Tested locally and on Droplet. Results:
+  - SEC EDGAR: 40 items (35 with tickers)
+  - Benzinga Ratings: 0 items (correct — no ratings published for 2026-03-20 yet)
+  - Benzinga News: 12 items (12/12 have tickers — 100% ticker rate)
+  - Yahoo Finance: 30 items (10 with tickers)
+  - Total: 82 items saved to options_news.json
+- Schema validation confirmed:
+  - `priority` field present: 12/12
+  - `published` field present: 12/12
+  - `timestamp` field (should be 0): 0/12
+  - `summary` populated: 11/12
+  - Empty tickers: 0
+- Options ticker list returns 12 items vs stocks' 8 due to the 15 additional tickers (MRVL, FDX, COST, etc.) capturing more sector coverage.
+**Issues encountered:**
+- None — same Benzinga API patterns proven in stocks pipeline, adapted to options schema.
+**Next session should:**
+- Run pipeline Monday 8:45am to confirm Benzinga Ratings returns items for the trading day
+- Run options_universe.py to see if Benzinga News tickers pass options filters
+- Monitor whether 12 items/day from Benzinga News is sufficient coverage
+- Consider expanding ticker list if needed
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
