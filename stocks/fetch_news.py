@@ -1,16 +1,21 @@
 """
-fetch_news.py — Scrapes all 4 news sources and saves output as news.json.
-Sources: SEC EDGAR 8-K RSS, Stock Titan, Finviz, Yahoo Finance RSS.
+fetch_news.py — Fetches all 4 news sources and saves output as news.json.
+Sources: SEC EDGAR 8-K RSS, Benzinga Ratings API, Benzinga News API, Yahoo Finance RSS.
 """
 
 import json
+import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+
+load_dotenv()
 
 EST = timezone(timedelta(hours=-5))
 
@@ -31,9 +36,25 @@ SEC_EDGAR_URL = (
     "https://www.sec.gov/cgi-bin/browse-edgar"
     "?action=getcurrent&type=8-K&dateb=&owner=include&count=40&output=atom"
 )
-STOCK_TITAN_URL = "https://www.stocktitan.net/news/live.html"
-FINVIZ_URL = "https://finviz.com/news.ashx"
 YAHOO_RSS_URL = "https://finance.yahoo.com/news/rssindex"
+
+BENZINGA_API_KEY = os.getenv("BENZINGA_API_KEY", "")
+BENZINGA_RATINGS_URL = "https://api.benzinga.com/api/v2/calendar/ratings"
+BENZINGA_NEWS_URL = "https://api.benzinga.com/api/v2/news"
+
+BENZINGA_TICKERS = (
+    "NVDA,TSLA,AMD,META,GOOGL,MSFT,AMZN,AAPL,SPY,QQQ,NFLX,CRM,SHOP,COIN,"
+    "PLTR,ARM,SMCI,UBER,ABNB,DASH,RBLX,SPOT,SNAP,MU,INTC,QCOM,AVGO,TSM,"
+    "ASML,ORCL,SAP,IBM,ADBE,NOW,WDAY,ZM,DOCU"
+)
+
+TIER1_FIRMS = {
+    "Goldman Sachs", "Morgan Stanley", "JPMorgan", "Bank of America",
+    "Citigroup", "Wells Fargo", "UBS", "Barclays", "Deutsche Bank",
+    "Jefferies", "Piper Sandler", "Needham", "Cowen", "Oppenheimer",
+    "RBC Capital", "Tigress Financial", "BMO Capital", "BTIG", "Truist",
+    "Mizuho",
+}
 
 
 def classify_catalyst(headline: str) -> str:
@@ -162,119 +183,155 @@ def fetch_sec_edgar() -> list[dict]:
     return items
 
 
-def fetch_stock_titan() -> list[dict]:
-    """Scrape Stock Titan live news page via jsGlobals.newsList."""
+def fetch_benzinga_news() -> list[dict]:
+    """Fetch Benzinga news headlines filtered to high-momentum tickers."""
     items = []
+    if not BENZINGA_API_KEY:
+        print("[WARN] BENZINGA_API_KEY not set — skipping Benzinga News", file=sys.stderr)
+        return items
     try:
-        resp = requests.get(STOCK_TITAN_URL, headers=HEADERS, timeout=15)
+        resp = requests.get(BENZINGA_NEWS_URL, params={
+            "token": BENZINGA_API_KEY,
+            "pageSize": 50,
+            "displayOutput": "full",
+            "tickers": BENZINGA_TICKERS,
+        }, headers=HEADERS, timeout=20)
         resp.raise_for_status()
 
-        # Extract jsGlobals JSON object from the page script
-        js_match = re.search(r'let jsGlobals\s*=\s*(\{.*?\});\s*\n', resp.text, re.DOTALL)
-        if js_match:
-            data = json.loads(js_match.group(1))
-            news_list = data.get("newsList", [])
+        today_str = datetime.now(EST).strftime("%Y-%m-%d")
 
-            for entry in news_list[:30]:
-                news = entry.get("news", {})
-                title = news.get("title", "") or ""
-                symbol_raw = news.get("symbol", "") or ""
-                uid = news.get("uid", "") or ""
-                date_str = news.get("date", "") or ""
-                tag = news.get("tag", "") or ""
+        root = ET.fromstring(resp.text)
+        for item in root.iter("item"):
+            # Extract first ticker from stocks array
+            stocks_el = item.find("stocks")
+            if stocks_el is None:
+                continue
+            first_stock = stocks_el.find("item")
+            if first_stock is None:
+                continue
+            name_el = first_stock.find("name")
+            if name_el is None or not name_el.text:
+                continue
+            ticker = name_el.text.strip().upper()
 
-                if not title:
-                    continue
+            title_el = item.find("title")
+            title = title_el.text.strip() if title_el is not None and title_el.text else ""
+            if not title:
+                continue
 
-                # Take the first symbol if multiple (e.g. "MAIN,MSIF")
-                ticker = symbol_raw.split(",")[0].strip().upper() if symbol_raw else ""
+            # Filter to today only — created field: "Fri, 20 Mar 2026 11:40:59 -0400"
+            created_el = item.find("created")
+            timestamp = now_est()
+            if created_el is not None and created_el.text:
+                try:
+                    dt = datetime.strptime(created_el.text.strip(), "%a, %d %b %Y %H:%M:%S %z")
+                    timestamp = dt.astimezone(EST).isoformat(timespec="seconds")
+                    if dt.astimezone(EST).strftime("%Y-%m-%d") != today_str:
+                        continue
+                except (ValueError, TypeError):
+                    pass
 
-                url = ""
-                if uid and ticker:
-                    url = f"https://www.stocktitan.net/news/{ticker}/{uid}.html"
+            teaser_el = item.find("teaser")
+            teaser = teaser_el.text.strip() if teaser_el is not None and teaser_el.text else ""
 
-                timestamp = now_est()
-                if date_str:
-                    try:
-                        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                        timestamp = dt.astimezone(EST).isoformat(timespec="seconds")
-                    except (ValueError, TypeError):
-                        pass
+            url_el = item.find("url")
+            url = url_el.text.strip() if url_el is not None and url_el.text else ""
 
-                # Use tag to help classify catalyst
-                catalyst_type = classify_catalyst(f"{title} {tag}")
+            catalyst_type = classify_catalyst(f"{title} {teaser}")
 
-                items.append({
-                    "source": "Stock Titan",
-                    "ticker": ticker,
-                    "headline": title[:200],
-                    "summary": "",
-                    "url": url,
-                    "timestamp": timestamp,
-                    "catalyst_type": catalyst_type,
-                })
+            items.append({
+                "source": "Benzinga News",
+                "ticker": ticker,
+                "headline": title[:200],
+                "summary": "",
+                "url": url,
+                "timestamp": timestamp,
+                "catalyst_type": catalyst_type,
+            })
     except Exception as e:
-        print(f"[ERROR] Stock Titan scrape failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Benzinga News fetch failed: {e}", file=sys.stderr)
     return items
 
 
-def fetch_finviz() -> list[dict]:
-    """Scrape Finviz news page for analyst upgrades/downgrades and news."""
+def fetch_benzinga_ratings() -> list[dict]:
+    """Fetch today's analyst ratings from Benzinga API, filtered to tier-1 firms."""
     items = []
+    if not BENZINGA_API_KEY:
+        print("[WARN] BENZINGA_API_KEY not set — skipping Benzinga Ratings", file=sys.stderr)
+        return items
     try:
-        resp = requests.get(FINVIZ_URL, headers=BROWSER_HEADERS, timeout=15)
+        resp = requests.get(BENZINGA_RATINGS_URL, params={
+            "token": BENZINGA_API_KEY,
+            "pageSize": 50,
+        }, headers=HEADERS, timeout=20)
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
 
-        # Finviz news tables — deduplicate by headline
-        seen_headlines = set()
-        news_tables = soup.select("table")
-        for table in news_tables:
-            rows = table.find_all("tr")
-            for row in rows:
-                cells = row.find_all("td")
-                if len(cells) < 2:
-                    continue
+        today_str = datetime.now(EST).strftime("%Y-%m-%d")
 
-                link_el = row.find("a", href=True)
-                if not link_el:
-                    continue
+        root = ET.fromstring(resp.text)
+        ratings_el = root.find("ratings")
+        if ratings_el is None:
+            return items
 
-                headline = link_el.get_text(strip=True)
-                url = link_el.get("href", "")
-                if not headline or len(headline) < 10:
-                    continue
-                if headline in seen_headlines:
-                    continue
-                seen_headlines.add(headline)
+        for item in ratings_el.iter("item"):
+            # Filter to today only
+            date_el = item.find("date")
+            if date_el is None or not date_el.text:
+                continue
+            if date_el.text.strip() != today_str:
+                continue
 
-                # First cell is often timestamp
-                raw_time = cells[0].get_text(strip=True)
-                timestamp = now_est()
-                for fmt in ["%b-%d-%y %I:%M%p", "%I:%M%p", "%b-%d-%y"]:
-                    try:
-                        dt = datetime.strptime(raw_time, fmt)
-                        if dt.year < 2000:
-                            dt = dt.replace(year=datetime.now().year)
-                        dt = dt.replace(tzinfo=EST)
-                        timestamp = dt.isoformat(timespec="seconds")
-                        break
-                    except (ValueError, TypeError):
-                        continue
+            # Filter to tier-1 firms only
+            analyst_el = item.find("analyst")
+            firm = analyst_el.text.strip() if analyst_el is not None and analyst_el.text else ""
+            if not any(t1 in firm for t1 in TIER1_FIRMS):
+                continue
 
-                ticker = extract_ticker_from_parentheses(headline)
+            ticker_el = item.find("ticker")
+            ticker = ticker_el.text.strip().upper() if ticker_el is not None and ticker_el.text else ""
+            if not ticker:
+                continue
 
-                items.append({
-                    "source": "Finviz",
-                    "ticker": ticker,
-                    "headline": headline[:200],
-                    "summary": "",
-                    "url": url,
-                    "timestamp": timestamp,
-                    "catalyst_type": classify_catalyst(headline),
-                })
+            action_el = item.find("action_company")
+            action = action_el.text.strip() if action_el is not None and action_el.text else ""
+
+            rating_cur_el = item.find("rating_current")
+            rating_cur = rating_cur_el.text.strip() if rating_cur_el is not None and rating_cur_el.text else ""
+
+            rating_pri_el = item.find("rating_prior")
+            rating_pri = rating_pri_el.text.strip() if rating_pri_el is not None and rating_pri_el.text else ""
+
+            pt_cur_el = item.find("pt_current")
+            pt_cur = pt_cur_el.text.strip() if pt_cur_el is not None and pt_cur_el.text else ""
+
+            pt_pri_el = item.find("pt_prior")
+            pt_pri = pt_pri_el.text.strip() if pt_pri_el is not None and pt_pri_el.text else ""
+
+            url_el = item.find("url")
+            url = url_el.text.strip() if url_el is not None and url_el.text else ""
+
+            headline = f"{firm} {action} {ticker} — Rating: {rating_pri} → {rating_cur}, PT: ${pt_pri} → ${pt_cur}"
+
+            catalyst_type = classify_catalyst(headline)
+            # Override with definitive action type
+            if "Upgrades" in action:
+                catalyst_type = "upgrade"
+            elif "Downgrades" in action:
+                catalyst_type = "downgrade"
+
+            timestamp = now_est()
+
+            items.append({
+                "source": "Benzinga Ratings",
+                "ticker": ticker,
+                "headline": headline[:200],
+                "summary": "",
+                "url": url,
+                "timestamp": timestamp,
+                "catalyst_type": catalyst_type,
+            })
     except Exception as e:
-        print(f"[ERROR] Finviz scrape failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Benzinga Ratings fetch failed: {e}", file=sys.stderr)
     return items
 
 
@@ -321,8 +378,8 @@ def main():
     all_items = []
     sources = [
         ("SEC EDGAR", fetch_sec_edgar),
-        ("Stock Titan", fetch_stock_titan),
-        ("Finviz", fetch_finviz),
+        ("Benzinga Ratings", fetch_benzinga_ratings),
+        ("Benzinga News", fetch_benzinga_news),
         ("Yahoo Finance", fetch_yahoo_finance),
     ]
 
