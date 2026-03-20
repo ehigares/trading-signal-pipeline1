@@ -239,6 +239,26 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 7 — 2026-03-20
+**Status:** Documentation update — CLAUDE.md reflects current pipeline state
+**Completed:**
+- Updated `stocks/CLAUDE.md` last-updated date to March 20, 2026
+- Updated News Sources section with accurate status column — Finviz marked as Broken, Stock Titan described as press releases not breaking news, SEC EDGAR and Yahoo statuses documented
+- Added SEC EDGAR Classification subsection documenting Item 2.02/1.01/5.02 logic
+- Updated Catalyst Scoring Priority to reference Item numbers instead of generic source names
+- Updated Cron Schedule to EDT times (13:15, 16:00, 19:00 UTC) replacing old EST times (14:15, 17:00, 20:00 UTC)
+- Added Data Source Status section with detailed status for all 5 sources including Benzinga API pending
+- Added Known Issues and Pending Improvements section (6 items: Finviz URL, Stock Titan quality, keyword classifier, backtesting, real-time triggers, broker execution)
+- Added Future Pipelines Planned section documenting Crypto Spot Pipeline as planned but not yet built
+- No code changes made — documentation only
+**Issues encountered:**
+- None
+**Next session should:**
+- Apply for Benzinga API trial
+- Once approved, replace Finviz fetch function with Benzinga API integration
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]

@@ -1,5 +1,5 @@
 # CLAUDE.md — Trading Signal Pipeline
-# Last Updated: March 13, 2026
+# Last Updated: March 20, 2026
 # Read this ENTIRE file before taking any action.
 
 ---
@@ -83,22 +83,34 @@ GOOGLE_SHEET_ID=1vN89Q3uDdH1HpLrx1ER8RavyChJ6IReh13oZSzE64ro
 ## News Sources (fetch_news.py)
 Scrape all four sources on every run. Reuters is NOT used.
 
-| Source | Type | Priority |
-|---|---|---|
-| SEC EDGAR 8-K RSS | Earnings, M&A, material events | HIGH |
-| Stock Titan | Breaking market news | HIGH |
-| Finviz | Analyst upgrades/downgrades | MEDIUM |
-| Yahoo Finance RSS | General market context/backup | LOW |
+| Source | Type | Priority | Status |
+|---|---|---|---|
+| SEC EDGAR 8-K RSS | Earnings, M&A, material events | HIGH | Active — CIK lookup + Item number classification working |
+| Stock Titan | Company press releases | HIGH | Active — only reliable ticker source, returns PRs not breaking news |
+| Finviz | General macro news (NOT analyst upgrades) | MEDIUM | **Broken** — wrong URL, pending Benzinga API replacement |
+| Yahoo Finance RSS | General market context/backup | LOW | Partially active — content varies, Pattern 2 extraction working |
+
+**Note on Finviz:** The current URL (`finviz.com/news.ashx`) scrapes general
+macro news headlines with zero tickers and zero analyst data. Finviz's actual
+analyst upgrade/downgrade data lives on per-ticker quote pages
+(`finviz.com/quote.ashx?t=NVDA`) which are not RSS-parseable. This source
+will be replaced with the Benzinga Newswire API when the trial is approved.
 
 ### SEC EDGAR RSS URL
 https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&output=atom
 
+### SEC EDGAR Classification
+classify_catalyst() checks SEC EDGAR Item numbers before keyword matching:
+- Item 2.02 (Results of Operations) → `earnings` type (score 9-10)
+- Item 1.01 (Material Definitive Agreement) → `merger` type (score 9-10)
+- Item 5.02 (Officer Departure/Appointment) → `leadership` type (score 5-6)
+
 ### Catalyst Scoring Priority (brain.py)
 Score and rank catalysts in this order:
-1. Earnings beat/miss (8-K) — highest score
-2. M&A announcement (8-K) — highest score
-3. Analyst upgrade with price target raise (Finviz) — high score
-4. Executive leadership change (8-K) — medium score
+1. Earnings results filed (8-K Item 2.02) — highest score
+2. M&A / material agreement (8-K Item 1.01) — highest score
+3. Analyst upgrade with price target raise (pending Benzinga) — high score
+4. Executive leadership change (8-K Item 5.02) — medium score
 5. General positive news (Stock Titan/Yahoo) — lower score
 
 ---
@@ -240,17 +252,69 @@ git pull origin main
 ## Cron Schedule (Trading Droplet)
 ```bash
 # Edit cron with: crontab -e
-# Run pipeline 3x daily at 9:15am, 12:00pm, 3:00pm EST (UTC-5)
-# EST = UTC-5, so times below are in UTC
-15 14 * * 1-5 cd /root/trading-pipeline && python3 main.py
-0 17 * * 1-5 cd /root/trading-pipeline && python3 main.py
-0 20 * * 1-5 cd /root/trading-pipeline && python3 main.py
+# Run pipeline 3x daily at 9:15am, 12:00pm, 3:00pm EDT (UTC-4)
+# EDT = UTC-4, so times below are in UTC
+15 13 * * 1-5 cd /root/trading-pipeline/stocks && python3 main.py >> /root/trading-pipeline/stocks/pipeline.log 2>&1
+0 16 * * 1-5 cd /root/trading-pipeline/stocks && python3 main.py >> /root/trading-pipeline/stocks/pipeline.log 2>&1
+0 19 * * 1-5 cd /root/trading-pipeline/stocks && python3 main.py >> /root/trading-pipeline/stocks/pipeline.log 2>&1
 ```
 Note: Weekdays only (1-5 = Monday through Friday).
 Times are in UTC to account for server timezone.
-9:15am EST = 14:15 UTC
-12:00pm EST = 17:00 UTC
-3:00pm EST = 20:00 UTC
+brain.py uses `ZoneInfo("America/New_York")` which auto-adjusts for EST/EDT.
+9:15am EDT = 13:15 UTC
+12:00pm EDT = 16:00 UTC
+3:00pm EDT = 19:00 UTC
+
+---
+
+## Data Source Status
+| Source | Status | Details |
+|---|---|---|
+| SEC EDGAR | Active | CIK-to-ticker lookup working (27/40 items get tickers). Item number classification working (Item 2.02 → earnings, Item 1.01 → merger, Item 5.02 → leadership). 13 items without tickers are non-public entities (Federal Home Loan Banks, SPVs). |
+| Stock Titan | Active | Only reliable ticker source currently (30/30 items always have tickers via JS `symbol` field). Returns company press releases — product launches, partnerships, dividends — not breaking market news. |
+| Finviz | Broken | Scraping `finviz.com/news.ashx` which returns 180 general macro news headlines with zero tickers and zero analyst data. The analyst upgrade/downgrade data exists only on per-ticker quote pages which are not RSS-parseable. Pending replacement with Benzinga API. |
+| Yahoo Finance | Partially active | RSS feed content varies run to run. Some pulls include headlines with parenthetical tickers like `(AMD)`, `(TSM)` which Pattern 2 catches. Other pulls return only earnings call summaries with no tickers. Inconsistent. |
+| Benzinga API | Pending | Trial requested. Will replace Finviz as the analyst upgrade/downgrade and pre-market movers source. Benzinga's free RSS (`benzinga.com/feed`) returns only crypto content. The paid API provides structured analyst actions with ticker, firm, rating, and price target. |
+
+---
+
+## Known Issues and Pending Improvements
+
+1. **Finviz URL is wrong** — scraping general news instead of analyst upgrades.
+   Pending replacement with Benzinga Newswire API when trial is approved.
+
+2. **Stock Titan returns press releases not breaking news** — product launches,
+   partnerships, donations score as "general" (3/10). To be evaluated after
+   Benzinga integration provides actual high-scoring catalysts.
+
+3. **Catalyst classifier uses keyword matching** — conference call announcements
+   score the same as actual earnings beats (both match "earnings" keyword and
+   get 9/10). SEC EDGAR Item numbers now provide definitive classification for
+   8-K filings, but Stock Titan and Yahoo headlines still rely on keyword
+   heuristics. Improvement: replace keyword matching with LLM-based
+   classification using Claude Haiku API for headline analysis.
+
+4. **No backtesting module exists yet** — planned future build after 20+
+   signals are collected and performance data is available in Google Sheets.
+
+5. **Real-time webhook trigger not yet implemented** — currently polling 3x
+   daily via cron. Planned future build using n8n webhook triggers or
+   WebSocket feeds for real-time catalyst detection.
+
+6. **Automated broker execution not yet implemented** — manual TOS entry by
+   design until signal quality is proven over 4-6 weeks of tracking.
+
+---
+
+## Future Pipelines Planned
+
+### Crypto Spot Pipeline
+Planned but not yet built. Will use Benzinga crypto news feed for catalyst
+detection. Same catalyst-based logic as stocks pipeline — score catalysts,
+filter universe, generate signals. Build after stocks and options pipelines
+are validated with real Benzinga data and 4-6 weeks of performance tracking.
+Start with spot trading only — crypto futures and Deribit options are
+separate future considerations.
 
 ---
 
