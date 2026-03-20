@@ -86,15 +86,9 @@ Scrape all four sources on every run. Reuters is NOT used.
 | Source | Type | Priority | Status |
 |---|---|---|---|
 | SEC EDGAR 8-K RSS | Earnings, M&A, material events | HIGH | Active — CIK lookup + Item number classification working |
-| Stock Titan | Company press releases | HIGH | Active — only reliable ticker source, returns PRs not breaking news |
-| Finviz | General macro news (NOT analyst upgrades) | MEDIUM | **Broken** — wrong URL, pending Benzinga API replacement |
+| Benzinga Ratings API | Analyst upgrades/downgrades with firm, rating, PT | HIGH | Active — tier-1 firm filter, today-only date filter |
+| Benzinga News API | Breaking news filtered to 37 high-momentum tickers | HIGH | Active — 100% ticker rate via stocks array |
 | Yahoo Finance RSS | General market context/backup | LOW | Partially active — content varies, Pattern 2 extraction working |
-
-**Note on Finviz:** The current URL (`finviz.com/news.ashx`) scrapes general
-macro news headlines with zero tickers and zero analyst data. Finviz's actual
-analyst upgrade/downgrade data lives on per-ticker quote pages
-(`finviz.com/quote.ashx?t=NVDA`) which are not RSS-parseable. This source
-will be replaced with the Benzinga Newswire API when the trial is approved.
 
 ### SEC EDGAR RSS URL
 https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&output=atom
@@ -270,22 +264,23 @@ brain.py uses `ZoneInfo("America/New_York")` which auto-adjusts for EST/EDT.
 ## Data Source Status
 | Source | Status | Details |
 |---|---|---|
-| SEC EDGAR | Active | CIK-to-ticker lookup working (27/40 items get tickers). Item number classification working (Item 2.02 → earnings, Item 1.01 → merger, Item 5.02 → leadership). 13 items without tickers are non-public entities (Federal Home Loan Banks, SPVs). |
-| Stock Titan | Active | Only reliable ticker source currently (30/30 items always have tickers via JS `symbol` field). Returns company press releases — product launches, partnerships, dividends — not breaking market news. |
-| Finviz | Broken | Scraping `finviz.com/news.ashx` which returns 180 general macro news headlines with zero tickers and zero analyst data. The analyst upgrade/downgrade data exists only on per-ticker quote pages which are not RSS-parseable. Pending replacement with Benzinga API. |
+| SEC EDGAR | Active | CIK-to-ticker lookup working (36/40 items get tickers). Item number classification working (Item 2.02 → earnings, Item 1.01 → merger, Item 5.02 → leadership). |
+| Benzinga Ratings | Active | Calls `calendar/ratings` API, filters to today + 20 tier-1 firms. Returns structured analyst actions with ticker, firm, rating, price target. Headline format: "{firm} {action} {ticker} — Rating: {prior} → {current}, PT: ${prior} → ${current}". |
+| Benzinga News | Active | Calls `news` API filtered to 37 high-momentum tickers. 100% ticker rate (extracted from stocks array). Returns breaking news headlines for NVDA, TSLA, AMD, META, GOOGL, MSFT, AMZN, AAPL, SPY, QQQ, and 27 others. |
 | Yahoo Finance | Partially active | RSS feed content varies run to run. Some pulls include headlines with parenthetical tickers like `(AMD)`, `(TSM)` which Pattern 2 catches. Other pulls return only earnings call summaries with no tickers. Inconsistent. |
-| Benzinga API | Pending | Trial requested. Will replace Finviz as the analyst upgrade/downgrade and pre-market movers source. Benzinga's free RSS (`benzinga.com/feed`) returns only crypto content. The paid API provides structured analyst actions with ticker, firm, rating, and price target. |
 
 ---
 
 ## Known Issues and Pending Improvements
 
-1. **Finviz URL is wrong** — scraping general news instead of analyst upgrades.
-   Pending replacement with Benzinga Newswire API when trial is approved.
+1. **Benzinga Ratings returns 0 items on slow days** — the today-only filter
+   means if no tier-1 firms publish ratings by the time the pipeline runs,
+   0 items are returned. This is correct behavior — no false data. Monitor
+   Monday 9:15am runs to confirm ratings appear on active trading days.
 
-2. **Stock Titan returns press releases not breaking news** — product launches,
-   partnerships, donations score as "general" (3/10). To be evaluated after
-   Benzinga integration provides actual high-scoring catalysts.
+2. **Benzinga News first-ticker may be an ETF** — the stocks array sometimes
+   lists an ETF (e.g., CIBR) before the primary company ticker (INFY).
+   brain.py filters by universe so non-target tickers are dropped. Acceptable.
 
 3. **Catalyst classifier uses keyword matching** — conference call announcements
    score the same as actual earnings beats (both match "earnings" keyword and

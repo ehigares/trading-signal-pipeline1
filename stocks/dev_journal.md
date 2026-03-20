@@ -259,6 +259,35 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 8 — 2026-03-20
+**Status:** Benzinga API integration — replaced two broken news sources
+**Completed:**
+- Replaced `fetch_finviz()` with `fetch_benzinga_ratings()` — calls Benzinga `calendar/ratings` API with `pageSize=50`, parses XML response, filters to today's date only, filters client-side to 20 tier-1 analyst firms (Goldman Sachs, Morgan Stanley, JPMorgan, UBS, Barclays, etc.), builds structured headline: `"{firm} {action} {ticker} — Rating: {prior} → {current}, PT: ${prior} → ${current}"`, overrides catalyst_type to "upgrade"/"downgrade" based on action_company field.
+- Replaced `fetch_stock_titan()` with `fetch_benzinga_news()` — calls Benzinga `news` API filtered to 37 high-momentum tickers (NVDA, TSLA, AMD, META, GOOGL, MSFT, AMZN, AAPL, SPY, QQQ, etc.), parses XML response, extracts first ticker from stocks array, filters to today's articles only.
+- Added `BENZINGA_API_KEY` to `.env.template` and `.env` (both local and Droplet).
+- Added `python-dotenv` load, `xml.etree.ElementTree` import, tier-1 firms set, Benzinga URL constants.
+- Updated `main()` source list: SEC EDGAR, Benzinga Ratings, Benzinga News, Yahoo Finance.
+- Removed all Finviz and Stock Titan code (URLs, functions, imports of BeautifulSoup still present for potential future use).
+- Tested locally and on Droplet. Results:
+  - SEC EDGAR: 40 items (36 with tickers)
+  - Benzinga Ratings: 0 items (correct — no ratings published for 2026-03-20 yet at time of run; latest in API were 2026-03-19)
+  - Benzinga News: 8 items (8/8 have tickers — 100% ticker rate)
+  - Yahoo Finance: 30 items (11 with tickers)
+  - Total: 78 items saved to news.json
+- All Benzinga News items have non-empty tickers. First ticker in stocks array is used as primary — some are ETF tickers (e.g., CIBR instead of INFY) which brain.py will filter via universe check.
+- Benzinga Ratings 0 items is expected for mid-day run — ratings are published during pre-market/market hours and the 50-item window spans ~3 weeks. The 9:15am cron run on Monday should capture fresh ratings.
+**Issues encountered:**
+- Benzinga API returns XML (not JSON) — used `xml.etree.ElementTree` for parsing instead of feedparser. The XML structure uses `<item>` tags nested inside `<ratings>` (for ratings) and `<result>` (for news).
+- Benzinga ratings `date` field filtering confirmed working — API returns items across ~3 weeks, today filter correctly keeps only matching dates.
+- Benzinga API `parameters[action]=upgrade` filter does NOT work server-side (tested in prior session) — must filter action_company client-side, which is what we do.
+**Next session should:**
+- Run pipeline Monday 9:15am to confirm Benzinga Ratings returns items for the trading day
+- Monitor whether tier-1 firm filter is too restrictive or too permissive
+- Consider expanding Benzinga News ticker list if 8 items/day is too few
+- Begin options pipeline Benzinga integration (same API, different output format)
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
