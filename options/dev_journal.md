@@ -290,6 +290,28 @@ Claude Code must add an entry here after every session.
 - Monitor the next few market mornings to see if any tickers pass all filters with the recalibrated thresholds
 
 ---
+## Session 6 — 2026-03-20
+**Status:** Documentation update — CLAUDE.md reflects current pipeline state
+**Completed:**
+- Updated `options/CLAUDE.md` last-updated date to March 20, 2026
+- Updated News Sources section with status column — Benzinga marked as Broken (crypto content), Finviz marked as Broken (wrong URL), SEC EDGAR and Yahoo statuses documented with current capabilities
+- Added SEC EDGAR Classification subsection documenting Item 2.02/1.01/5.02 logic
+- Added detailed notes on Benzinga and Finviz URL issues explaining what each actually returns
+- Updated Filters section to reflect Session 5 changes — spread % (25%) replacing absolute $0.20, IV/RV ratio (0.8-2.5) replacing fake IV Rank
+- Updated ETF Rules and What to Reject sections to use new filter names
+- Added Data Source Status section with detailed status for all 5 sources
+- Added Known Issues and Pending Improvements section (7 items)
+- Added Filter Change Log documenting both Session 5 filter changes with before/after/reason
+- Added Future Pipelines Planned section (Crypto Spot Pipeline)
+- No code changes made — documentation only
+**Issues encountered:**
+- None
+**Next session should:**
+- Apply for Benzinga API trial
+- Once approved, replace both Finviz and Benzinga fetch functions with Benzinga API integration
+- Run full pipeline end-to-end to verify downstream scripts handle new field names
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
