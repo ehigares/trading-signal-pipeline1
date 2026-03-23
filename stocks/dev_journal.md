@@ -288,6 +288,20 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 9 — 2026-03-22
+**Status:** Pre-flight code cleanup
+**Completed:**
+- Removed unused `from bs4 import BeautifulSoup` import from `stocks/fetch_news.py`. BeautifulSoup was left over from the old Finviz/Stock Titan scraping code replaced by Benzinga API in Session 8 — no code in this file references it.
+- Ran `fetch_news.py` on Droplet — no errors, 73 items fetched (SEC EDGAR 40, Benzinga Ratings 0, Benzinga News 3, Yahoo 30).
+- Committed and pushed to GitHub, pulled to Droplet.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor Monday 9:15am cron run to confirm pipeline runs cleanly after import removal
+- Begin FinBERT integration planning (Phase 1 Session P1-2) to replace keyword-based catalyst classification
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
