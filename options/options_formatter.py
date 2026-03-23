@@ -11,12 +11,13 @@ import os
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-EDT = timezone(timedelta(hours=-4))
+EASTERN = ZoneInfo("America/New_York")
 
 # Load .env from repo root
 load_dotenv(SCRIPT_DIR.parent / ".env")
@@ -24,18 +25,18 @@ load_dotenv(SCRIPT_DIR.parent / ".env")
 WEBHOOK_URL = os.getenv("OPTIONS_SLACK_WEBHOOK_URL", "")
 
 
-def now_edt_display() -> str:
+def now_eastern_display() -> str:
     """Return current time formatted for display, e.g. '8:45am'."""
-    now = datetime.now(EDT)
+    now = datetime.now(EASTERN)
     hour = now.strftime("%I").lstrip("0")
     minute = now.strftime("%M")
     ampm = now.strftime("%p").lower()
     return f"{hour}:{minute}{ampm}"
 
 
-def now_edt_date() -> str:
+def now_eastern_date() -> str:
     """Return current date for ThinkScript comment."""
-    return datetime.now(EDT).strftime("%Y-%m-%d")
+    return datetime.now(EASTERN).strftime("%Y-%m-%d")
 
 
 def build_direction_rationale(data: dict) -> str:
@@ -62,8 +63,8 @@ def build_direction_rationale(data: dict) -> str:
 
 def build_signal_blocks(data: dict) -> dict:
     """Build Slack Block Kit payload for a signal message."""
-    time_str = now_edt_display()
-    date_str = now_edt_date()
+    time_str = now_eastern_display()
+    date_str = now_eastern_date()
     ticker = data["ticker"]
     strike = data["strike"]
     direction = data["direction"]
@@ -155,7 +156,7 @@ def build_signal_blocks(data: dict) -> dict:
 
 def build_no_signal_payload() -> dict:
     """Build Slack payload for no-signal message."""
-    time_str = now_edt_display()
+    time_str = now_eastern_display()
     return {
         "blocks": [
             {
@@ -204,10 +205,10 @@ def main():
         data = json.load(f)
 
     if data.get("no_signal", False):
-        print(f"[{datetime.now(EDT).isoformat(timespec='seconds')}] No signal - sending no-signal message...")
+        print(f"[{datetime.now(EASTERN).isoformat(timespec='seconds')}] No signal - sending no-signal message...")
         payload = build_no_signal_payload()
     else:
-        print(f"[{datetime.now(EDT).isoformat(timespec='seconds')}] "
+        print(f"[{datetime.now(EASTERN).isoformat(timespec='seconds')}] "
               f"Formatting signal for {data['ticker']} {data['direction']}...")
         payload = build_signal_blocks(data)
 
@@ -215,7 +216,7 @@ def main():
     if not success:
         sys.exit(1)
 
-    print(f"[{datetime.now(EDT).isoformat(timespec='seconds')}] Done.")
+    print(f"[{datetime.now(EASTERN).isoformat(timespec='seconds')}] Done.")
 
 
 if __name__ == "__main__":

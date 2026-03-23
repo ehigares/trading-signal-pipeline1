@@ -13,12 +13,13 @@ import time
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-EDT = timezone(timedelta(hours=-4))
+EASTERN = ZoneInfo("America/New_York")
 
 # Load .env from repo root
 load_dotenv(SCRIPT_DIR.parent / ".env")
@@ -36,16 +37,16 @@ logging.basicConfig(
 logger = logging.getLogger("options_logger")
 
 
-def now_edt_display() -> str:
+def now_eastern_display() -> str:
     """Return current EDT time formatted for the payload timestamp."""
-    now = datetime.now(EDT)
+    now = datetime.now(EASTERN)
     return now.strftime("%Y-%m-%d %I:%M %p EDT")
 
 
 def build_signal_payload(data: dict) -> dict:
     """Build the full 17-column payload for a signal row."""
     return {
-        "timestamp": now_edt_display(),
+        "timestamp": now_eastern_display(),
         "ticker": data.get("ticker", ""),
         "contract": data.get("contract_label", ""),
         "direction": data.get("direction", ""),
@@ -68,7 +69,7 @@ def build_signal_payload(data: dict) -> dict:
 def build_no_signal_payload() -> dict:
     """Build a minimal payload for a no-signal row."""
     return {
-        "timestamp": now_edt_display(),
+        "timestamp": now_eastern_display(),
         "ticker": "NO SIGNAL",
         "contract": "N/A",
         "direction": "N/A",
@@ -132,7 +133,7 @@ def main():
     with open(contract_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    now = datetime.now(EDT).isoformat(timespec="seconds")
+    now = datetime.now(EASTERN).isoformat(timespec="seconds")
 
     if data.get("no_signal", False):
         print(f"[{now}] No signal today - logging no-signal row...")
@@ -147,7 +148,7 @@ def main():
         print("[ERROR] Failed to log to Google Sheets.", file=sys.stderr)
         # Don't sys.exit — spec says do not crash the pipeline
 
-    now = datetime.now(EDT).isoformat(timespec="seconds")
+    now = datetime.now(EASTERN).isoformat(timespec="seconds")
     print(f"[{now}] Done.")
 
 

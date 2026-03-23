@@ -8,32 +8,33 @@ import json
 import os
 import sys
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-EST = timezone(timedelta(hours=-5))
+EASTERN = ZoneInfo("America/New_York")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
 # Schedule times for "next scan" display
-SCAN_TIMES = ["9:15 AM", "12:00 PM", "3:00 PM"]
+SCAN_TIMES = ["9:15 AM", "12:00 PM"]
 
 
-def now_est() -> datetime:
-    return datetime.now(EST)
+def now_eastern() -> datetime:
+    return datetime.now(EASTERN)
 
 
 def get_next_scan_time() -> str:
     """Return the next scheduled scan time based on current EST time."""
-    now = now_est()
+    now = now_eastern()
     current_minutes = now.hour * 60 + now.minute
     schedule = [(9, 15), (12, 0), (15, 0)]
     for h, m in schedule:
         if current_minutes < h * 60 + m:
-            return f"{h}:{m:02d} {'AM' if h < 12 else 'PM'} EST"
-    return "9:15 AM EST (next trading day)"
+            return f"{h}:{m:02d} {'AM' if h < 12 else 'PM'} EDT"
+    return "9:15 AM EDT (next trading day)"
 
 
 def build_thinkscript(signal: dict) -> str:
@@ -159,7 +160,7 @@ def build_signal_message(signal: dict) -> dict:
 
 def build_no_signal_message() -> dict:
     """Build Slack message for when no signal is generated."""
-    now = now_est()
+    now = now_eastern()
     date_str = now.strftime("%B %d, %Y")
     time_str = now.strftime("%I:%M %p EST")
     next_scan = get_next_scan_time()
@@ -205,7 +206,7 @@ def send_to_slack(payload: dict) -> bool:
 
 def main():
     """Format and send signal to Slack."""
-    now = now_est()
+    now = now_eastern()
     print(f"[{now.isoformat(timespec='seconds')}] slack_formatter.py starting...")
 
     # ── Check for trade_signal.json first (has signal) ──

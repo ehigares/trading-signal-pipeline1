@@ -9,19 +9,20 @@ import os
 import sys
 import time
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-EST = timezone(timedelta(hours=-5))
+EASTERN = ZoneInfo("America/New_York")
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
 
-def now_est() -> datetime:
-    return datetime.now(EST)
+def now_eastern() -> datetime:
+    return datetime.now(EASTERN)
 
 
 def send_to_n8n(payload: dict) -> bool:
@@ -63,7 +64,7 @@ def alert_slack(message: str):
 
 def main():
     """Read trade_signal.json and POST to n8n webhook."""
-    now = now_est()
+    now = now_eastern()
     print(f"[{now.isoformat(timespec='seconds')}] logger.py starting...")
 
     # ── Load trade_signal.json ──

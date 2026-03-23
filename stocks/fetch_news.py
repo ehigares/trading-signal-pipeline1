@@ -9,6 +9,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 import feedparser
 import requests
@@ -16,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-EST = timezone(timedelta(hours=-5))
+EASTERN = ZoneInfo("America/New_York")
 
 HEADERS = {
     "User-Agent": "TradingSignalPipeline/1.0 (ehigares@gmail.com)",
@@ -86,9 +87,9 @@ def classify_catalyst(headline: str) -> str:
     return "general"
 
 
-def now_est() -> str:
+def now_eastern() -> str:
     """Return current EST timestamp as ISO string."""
-    return datetime.now(EST).isoformat(timespec="seconds")
+    return datetime.now(EASTERN).isoformat(timespec="seconds")
 
 
 def extract_ticker_from_parentheses(text: str) -> str:
@@ -161,11 +162,11 @@ def fetch_sec_edgar() -> list[dict]:
                 ticker = _lookup_ticker_by_cik(cik, company)
 
             # Parse timestamp
-            timestamp = now_est()
+            timestamp = now_eastern()
             if updated:
                 try:
                     dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-                    timestamp = dt.astimezone(EST).isoformat(timespec="seconds")
+                    timestamp = dt.astimezone(EASTERN).isoformat(timespec="seconds")
                 except (ValueError, TypeError):
                     pass
 
@@ -199,7 +200,7 @@ def fetch_benzinga_news() -> list[dict]:
         }, headers=HEADERS, timeout=20)
         resp.raise_for_status()
 
-        today_str = datetime.now(EST).strftime("%Y-%m-%d")
+        today_str = datetime.now(EASTERN).strftime("%Y-%m-%d")
 
         root = ET.fromstring(resp.text)
         for item in root.iter("item"):
@@ -222,12 +223,12 @@ def fetch_benzinga_news() -> list[dict]:
 
             # Filter to today only — created field: "Fri, 20 Mar 2026 11:40:59 -0400"
             created_el = item.find("created")
-            timestamp = now_est()
+            timestamp = now_eastern()
             if created_el is not None and created_el.text:
                 try:
                     dt = datetime.strptime(created_el.text.strip(), "%a, %d %b %Y %H:%M:%S %z")
-                    timestamp = dt.astimezone(EST).isoformat(timespec="seconds")
-                    if dt.astimezone(EST).strftime("%Y-%m-%d") != today_str:
+                    timestamp = dt.astimezone(EASTERN).isoformat(timespec="seconds")
+                    if dt.astimezone(EASTERN).strftime("%Y-%m-%d") != today_str:
                         continue
                 except (ValueError, TypeError):
                     pass
@@ -267,7 +268,7 @@ def fetch_benzinga_ratings() -> list[dict]:
         }, headers=HEADERS, timeout=20)
         resp.raise_for_status()
 
-        today_str = datetime.now(EST).strftime("%Y-%m-%d")
+        today_str = datetime.now(EASTERN).strftime("%Y-%m-%d")
 
         root = ET.fromstring(resp.text)
         ratings_el = root.find("ratings")
@@ -320,7 +321,7 @@ def fetch_benzinga_ratings() -> list[dict]:
             elif "Downgrades" in action:
                 catalyst_type = "downgrade"
 
-            timestamp = now_est()
+            timestamp = now_eastern()
 
             items.append({
                 "source": "Benzinga Ratings",
@@ -348,11 +349,11 @@ def fetch_yahoo_finance() -> list[dict]:
             link = entry.get("link", "")
             published = entry.get("published", "")
 
-            timestamp = now_est()
+            timestamp = now_eastern()
             if published:
                 try:
                     dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-                    timestamp = dt.astimezone(EST).isoformat(timespec="seconds")
+                    timestamp = dt.astimezone(EASTERN).isoformat(timespec="seconds")
                 except (ValueError, TypeError, AttributeError):
                     pass
 
@@ -374,7 +375,7 @@ def fetch_yahoo_finance() -> list[dict]:
 
 def main():
     """Fetch news from all 4 sources and save to news.json."""
-    print(f"[{now_est()}] Starting news fetch...")
+    print(f"[{now_eastern()}] Starting news fetch...")
 
     all_items = []
     sources = [
@@ -398,7 +399,7 @@ def main():
     with open("news.json", "w", encoding="utf-8") as f:
         json.dump(all_items, f, indent=2, ensure_ascii=False)
 
-    print(f"[{now_est()}] Saved {len(all_items)} items to news.json")
+    print(f"[{now_eastern()}] Saved {len(all_items)} items to news.json")
 
 
 if __name__ == "__main__":

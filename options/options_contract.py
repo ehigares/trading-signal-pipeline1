@@ -16,11 +16,12 @@ import math
 import sys
 from datetime import datetime, timezone, timedelta, date
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import yfinance as yf
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-EDT = timezone(timedelta(hours=-4))
+EASTERN = ZoneInfo("America/New_York")
 
 MAX_RISK = 400
 MAX_CONTRACTS = 3
@@ -42,8 +43,8 @@ DTE_TARGETS = {
 }
 
 
-def now_edt() -> str:
-    return datetime.now(EDT).isoformat(timespec="seconds")
+def now_eastern() -> str:
+    return datetime.now(EASTERN).isoformat(timespec="seconds")
 
 
 def round_to_nickel(price: float) -> float:
@@ -161,16 +162,16 @@ def main():
 
     # Handle no-signal case
     if signal.get("no_signal", False):
-        print(f"[{now_edt()}] No signal today - writing no_signal to options_contract.json")
+        print(f"[{now_eastern()}] No signal today - writing no_signal to options_contract.json")
         output = {
-            "timestamp": now_edt(),
+            "timestamp": now_eastern(),
             "no_signal": True,
             "reason": signal.get("reason", "No signal"),
         }
         output_path = SCRIPT_DIR / "options_contract.json"
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(output, f, indent=2, ensure_ascii=False)
-        print(f"[{now_edt()}] Saved to options_contract.json")
+        print(f"[{now_eastern()}] Saved to options_contract.json")
         return
 
     ticker_symbol = signal["ticker"]
@@ -178,10 +179,10 @@ def main():
     catalyst_type = signal["catalyst_type"]
     stock_price = signal.get("stock_price", 0)
 
-    print(f"[{now_edt()}] Fetching options chain for {ticker_symbol} ({direction})...")
+    print(f"[{now_eastern()}] Fetching options chain for {ticker_symbol} ({direction})...")
 
     ticker = yf.Ticker(ticker_symbol)
-    today = datetime.now(EDT).date()
+    today = datetime.now(EASTERN).date()
 
     # Refresh stock price from yfinance
     try:
@@ -260,7 +261,7 @@ def main():
     print(f"  Contracts: {contracts}, Total Risk: ${total_risk}, Total Target: ${total_target}")
 
     output = {
-        "timestamp": now_edt(),
+        "timestamp": now_eastern(),
         "no_signal": False,
         "ticker": ticker_symbol,
         "direction": direction,
@@ -287,7 +288,7 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 
-    print(f"[{now_edt()}] Saved to options_contract.json")
+    print(f"[{now_eastern()}] Saved to options_contract.json")
 
 
 if __name__ == "__main__":

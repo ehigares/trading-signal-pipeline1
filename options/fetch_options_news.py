@@ -12,6 +12,7 @@ import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import feedparser
 import requests
@@ -22,7 +23,7 @@ load_dotenv()
 # Resolve paths relative to this script's directory
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-EDT = timezone(timedelta(hours=-4))
+EASTERN = ZoneInfo("America/New_York")
 
 HEADERS = {
     "User-Agent": "OptionsSignalPipeline/1.0 (ehigares@gmail.com)",
@@ -139,9 +140,9 @@ def is_tier1_analyst(headline: str) -> bool:
     return any(bank in h for bank in TIER1_BANKS)
 
 
-def now_edt() -> str:
+def now_eastern() -> str:
     """Return current EDT timestamp as ISO string."""
-    return datetime.now(EDT).isoformat(timespec="seconds")
+    return datetime.now(EASTERN).isoformat(timespec="seconds")
 
 
 def extract_ticker_from_text(text: str) -> str:
@@ -190,11 +191,8 @@ def fetch_sec_edgar() -> list[dict]:
     items = []
     try:
         resp = requests.get(SEC_EDGAR_URL, headers=HEADERS, timeout=15)
-        print(f"    [DEBUG] SEC EDGAR response: status={resp.status_code}, "
-              f"length={len(resp.text)}", flush=True)
         resp.raise_for_status()
         feed = feedparser.parse(resp.text)
-        print(f"    [DEBUG] SEC EDGAR feed entries: {len(feed.entries)}", flush=True)
         for entry in feed.entries[:40]:
             title = entry.get("title", "")
             link = entry.get("link", "")
@@ -215,11 +213,11 @@ def fetch_sec_edgar() -> list[dict]:
             if not ticker and cik:
                 ticker = _lookup_ticker_by_cik(cik, company)
 
-            published = now_edt()
+            published = now_eastern()
             if updated:
                 try:
                     dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-                    published = dt.astimezone(EDT).isoformat(timespec="seconds")
+                    published = dt.astimezone(EASTERN).isoformat(timespec="seconds")
                 except (ValueError, TypeError):
                     pass
 
@@ -228,7 +226,7 @@ def fetch_sec_edgar() -> list[dict]:
 
             items.append({
                 "ticker": ticker,
-                "source": "SEC_EDGAR",
+                "source": "SEC EDGAR",
                 "priority": "HIGH",
                 "headline": title[:200] if title else company,
                 "catalyst_type": catalyst_type,
@@ -254,7 +252,7 @@ def fetch_benzinga_ratings() -> list[dict]:
         }, headers=HEADERS, timeout=20)
         resp.raise_for_status()
 
-        today_str = datetime.now(EDT).strftime("%Y-%m-%d")
+        today_str = datetime.now(EASTERN).strftime("%Y-%m-%d")
 
         root = ET.fromstring(resp.text)
         ratings_el = root.find("ratings")
@@ -311,12 +309,12 @@ def fetch_benzinga_ratings() -> list[dict]:
 
             items.append({
                 "ticker": ticker,
-                "source": "BENZINGA_RATINGS",
+                "source": "Benzinga Ratings",
                 "priority": "HIGH",
                 "headline": headline[:200],
                 "catalyst_type": catalyst_type,
                 "summary": summary,
-                "published": now_edt(),
+                "published": now_eastern(),
                 "url": url,
             })
     except Exception as e:
@@ -339,7 +337,7 @@ def fetch_benzinga_news() -> list[dict]:
         }, headers=HEADERS, timeout=20)
         resp.raise_for_status()
 
-        today_str = datetime.now(EDT).strftime("%Y-%m-%d")
+        today_str = datetime.now(EASTERN).strftime("%Y-%m-%d")
 
         root = ET.fromstring(resp.text)
         for item in root.iter("item"):
@@ -362,12 +360,12 @@ def fetch_benzinga_news() -> list[dict]:
 
             # Filter to today only
             created_el = item.find("created")
-            published = now_edt()
+            published = now_eastern()
             if created_el is not None and created_el.text:
                 try:
                     dt = datetime.strptime(created_el.text.strip(), "%a, %d %b %Y %H:%M:%S %z")
-                    published = dt.astimezone(EDT).isoformat(timespec="seconds")
-                    if dt.astimezone(EDT).strftime("%Y-%m-%d") != today_str:
+                    published = dt.astimezone(EASTERN).isoformat(timespec="seconds")
+                    if dt.astimezone(EASTERN).strftime("%Y-%m-%d") != today_str:
                         continue
                 except (ValueError, TypeError):
                     pass
@@ -382,7 +380,7 @@ def fetch_benzinga_news() -> list[dict]:
 
             items.append({
                 "ticker": ticker,
-                "source": "BENZINGA_NEWS",
+                "source": "Benzinga News",
                 "priority": "HIGH",
                 "headline": title[:200],
                 "catalyst_type": catalyst_type,
@@ -406,11 +404,11 @@ def fetch_yahoo_finance() -> list[dict]:
             title = entry.get("title", "")
             link = entry.get("link", "")
 
-            published = now_edt()
+            published = now_eastern()
             if hasattr(entry, "published_parsed") and entry.published_parsed:
                 try:
                     dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-                    published = dt.astimezone(EDT).isoformat(timespec="seconds")
+                    published = dt.astimezone(EASTERN).isoformat(timespec="seconds")
                 except (ValueError, TypeError, AttributeError):
                     pass
 
@@ -419,7 +417,7 @@ def fetch_yahoo_finance() -> list[dict]:
 
             items.append({
                 "ticker": ticker,
-                "source": "YAHOO",
+                "source": "Yahoo Finance",
                 "priority": "MEDIUM",
                 "headline": title[:200],
                 "catalyst_type": catalyst_type,
@@ -434,7 +432,7 @@ def fetch_yahoo_finance() -> list[dict]:
 
 def main():
     """Fetch news from all 4 sources and save to options_news.json."""
-    print(f"[{now_edt()}] Starting options news fetch...")
+    print(f"[{now_eastern()}] Starting options news fetch...")
 
     all_items = []
     sources = [
@@ -455,7 +453,7 @@ def main():
         sys.exit(1)
 
     output = {
-        "timestamp": now_edt(),
+        "timestamp": now_eastern(),
         "items": all_items,
         "total_items": len(all_items),
     }
@@ -464,7 +462,7 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 
-    print(f"[{now_edt()}] Saved {len(all_items)} items to options_news.json")
+    print(f"[{now_eastern()}] Saved {len(all_items)} items to options_news.json")
 
 
 if __name__ == "__main__":

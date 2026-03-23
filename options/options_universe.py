@@ -11,12 +11,13 @@ import math
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-EDT = timezone(timedelta(hours=-4))
+EASTERN = ZoneInfo("America/New_York")
 
 # Pre-approved ETFs that skip Market Cap filter
 ETFS = {"SPY", "QQQ", "IWM"}
@@ -31,8 +32,8 @@ MIN_MARKET_CAP = 20_000_000_000 # $20 billion
 MIN_STOCK_PRICE = 20.0          # dollars
 
 
-def now_edt() -> str:
-    return datetime.now(EDT).isoformat(timespec="seconds")
+def now_eastern() -> str:
+    return datetime.now(EASTERN).isoformat(timespec="seconds")
 
 
 def _safe_float(val, default=0.0):
@@ -131,16 +132,6 @@ def get_options_data(ticker_symbol: str) -> dict:
             if stock_price > 0:
                 expected_move_pct = (straddle_price / stock_price) * 100
 
-        # Debug log: show raw values before filtering
-        spread_str = f"{spread_pct:.1f}%" if spread_pct < 999 else "N/A"
-        iv_str = f"{current_iv:.1f}%" if current_iv is not None else "N/A"
-        rv_str = f"{realized_vol:.1f}%" if realized_vol is not None else "N/A"
-        ratio_str = f"{iv_rv_ratio:.2f}" if iv_rv_ratio is not None else "N/A"
-        print(f"    [DEBUG] {ticker_symbol}: price=${stock_price:.2f}, "
-              f"opts_vol={total_options_volume}, spread={spread_str}, "
-              f"iv={iv_str}, rv={rv_str}, iv/rv={ratio_str}, "
-              f"exp_move={expected_move_pct:.1f}%", flush=True)
-
         return {
             "stock_price": round(stock_price, 2),
             "market_cap": market_cap,
@@ -199,7 +190,7 @@ def main():
         news_data = json.load(f)
 
     items = news_data.get("items", [])
-    print(f"[{now_edt()}] Processing {len(items)} news items...")
+    print(f"[{now_eastern()}] Processing {len(items)} news items...")
 
     # Deduplicate tickers — keep the highest-priority item per ticker
     ticker_items = {}
@@ -265,7 +256,7 @@ def main():
     passing = [c for c in candidates if c["passes_filters"]]
 
     output = {
-        "timestamp": now_edt(),
+        "timestamp": now_eastern(),
         "candidates": passing,
         "total_candidates": len(passing),
         "total_rejected": rejected_count,
@@ -275,7 +266,7 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 
-    print(f"\n[{now_edt()}] Results: {len(passing)} passed, {rejected_count} rejected")
+    print(f"\n[{now_eastern()}] Results: {len(passing)} passed, {rejected_count} rejected")
     print(f"  Saved to options_candidates.json")
 
 

@@ -8,11 +8,12 @@ import json
 import math
 import sys
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
 
-EST = timezone(timedelta(hours=-5))
+EASTERN = ZoneInfo("America/New_York")
 
 ACCOUNT_SIZE = 50_000
 MAX_RISK = 500       # $500 max risk per trade (1% of account)
@@ -20,8 +21,8 @@ REWARD_RATIO = 2.0   # 2:1 reward-to-risk
 ATR_STOP_MULT = 0.5  # Stop = Entry - (ATR * 0.5)
 
 
-def now_est() -> datetime:
-    return datetime.now(EST)
+def now_eastern() -> datetime:
+    return datetime.now(EASTERN)
 
 
 def calculate_trade_levels(ticker: str) -> dict | None:
@@ -121,7 +122,7 @@ def calculate_trade_levels(ticker: str) -> dict | None:
 
 def main():
     """Read best_signal.json, calculate trade levels, output trade_signal.json."""
-    now = now_est()
+    now = now_eastern()
     print(f"[{now.isoformat(timespec='seconds')}] generator.py starting...")
 
     # ── Load best_signal.json ──

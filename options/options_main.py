@@ -24,12 +24,13 @@ import sys
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-EDT = timezone(timedelta(hours=-4))
+EASTERN = ZoneInfo("America/New_York")
 
 # Load .env from repo root
 load_dotenv(SCRIPT_DIR.parent / ".env")
@@ -77,7 +78,7 @@ def send_slack_error(script_name: str, error_msg: str):
     """Send error alert to #options-signals Slack channel."""
     if not SLACK_WEBHOOK:
         return
-    now = datetime.now(EDT)
+    now = datetime.now(EASTERN)
     time_str = now.strftime("%I:%M%p").lstrip("0").lower()
     text = f"OPTIONS PIPELINE ERROR: {script_name} failed at {time_str} EDT\n{error_msg}"
     try:
@@ -128,7 +129,7 @@ def run_script(script_name: str) -> bool:
 def main():
     """Run all 6 pipeline scripts in sequence."""
     pipeline_start = time.time()
-    now = datetime.now(EDT).isoformat(timespec="seconds")
+    now = datetime.now(EASTERN).isoformat(timespec="seconds")
     logger.info(f"=== OPTIONS PIPELINE START === {now}")
 
     skip_downstream = False
@@ -145,7 +146,7 @@ def main():
             skip_downstream = True
 
     total_time = round(time.time() - pipeline_start, 1)
-    now = datetime.now(EDT).isoformat(timespec="seconds")
+    now = datetime.now(EASTERN).isoformat(timespec="seconds")
     logger.info(f"=== OPTIONS PIPELINE COMPLETE === {now} (total: {total_time}s)")
 
 

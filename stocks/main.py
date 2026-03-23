@@ -9,19 +9,20 @@ import os
 import subprocess
 import sys
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-EST = timezone(timedelta(hours=-5))
+EASTERN = ZoneInfo("America/New_York")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def now_est() -> datetime:
-    return datetime.now(EST)
+def now_eastern() -> datetime:
+    return datetime.now(EASTERN)
 
 
 def alert_slack(message: str):
@@ -60,7 +61,7 @@ def run_script(script_name: str) -> tuple[bool, str]:
 
 
 def main():
-    now = now_est()
+    now = now_eastern()
     print(f"{'='*60}")
     print(f"  Trading Signal Pipeline")
     print(f"  {now.strftime('%B %d, %Y %I:%M %p EST')}")

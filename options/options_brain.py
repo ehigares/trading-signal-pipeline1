@@ -11,9 +11,10 @@ import json
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-EDT = timezone(timedelta(hours=-4))
+EASTERN = ZoneInfo("America/New_York")
 
 MIN_SCORE = 7
 
@@ -46,8 +47,8 @@ TIEBREAK_ORDER = {
 }
 
 
-def now_edt() -> str:
-    return datetime.now(EDT).isoformat(timespec="seconds")
+def now_eastern() -> str:
+    return datetime.now(EASTERN).isoformat(timespec="seconds")
 
 
 def score_candidate(candidate: dict) -> dict:
@@ -89,7 +90,7 @@ def main():
         data = json.load(f)
 
     candidates = data.get("candidates", [])
-    print(f"[{now_edt()}] Scoring {len(candidates)} candidates...")
+    print(f"[{now_eastern()}] Scoring {len(candidates)} candidates...")
 
     # Score all candidates
     scored = []
@@ -108,7 +109,7 @@ def main():
     if not qualified:
         print(f"  No catalyst scored {MIN_SCORE}/10 or higher.")
         output = {
-            "timestamp": now_edt(),
+            "timestamp": now_eastern(),
             "no_signal": True,
             "reason": f"No catalyst scored {MIN_SCORE}/10 or higher today",
         }
@@ -124,7 +125,7 @@ def main():
               f"(Score: {best['catalyst_score']}, Direction: {best['direction']})")
 
         output = {
-            "timestamp": now_edt(),
+            "timestamp": now_eastern(),
             "no_signal": False,
             "ticker": best["ticker"],
             "direction": best["direction"],
@@ -140,7 +141,7 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 
-    print(f"[{now_edt()}] Saved to options_signal.json")
+    print(f"[{now_eastern()}] Saved to options_signal.json")
 
 
 if __name__ == "__main__":
