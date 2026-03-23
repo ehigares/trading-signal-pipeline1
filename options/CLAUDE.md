@@ -59,6 +59,7 @@ Add these new keys to the existing .env file. Do not replace existing keys.
 OPTIONS_SLACK_WEBHOOK_URL=your-options-slack-webhook-url-here
 OPTIONS_N8N_WEBHOOK_URL=to-be-generated-when-options-n8n-workflow-is-built
 GOOGLE_SHEET_ID=1vN89Q3uDdH1HpLrx1ER8RavyChJ6IReh13oZSzE64ro
+BENZINGA_API_KEY=your-benzinga-api-key-here
 ```
 
 Note: GOOGLE_SHEET_ID is already in .env from stocks pipeline. Do not duplicate it.
@@ -424,8 +425,7 @@ git pull origin main
    with real large-cap catalysts from Benzinga.
 
 5. **Catalyst classifier improvements** — same LLM upgrade planned as stocks
-   pipeline. Replace keyword matching with Claude Haiku API for headline
-   analysis to distinguish actual earnings beats from conference call notices.
+   pipeline. Replace keyword matching with FinBERT (free, local, 97% accuracy on financial text). See Master Roadmap Phase 1 Session P1-2. Do NOT use Claude Haiku API.
 
 6. **No backtesting module exists yet** — planned future build after 20+
    signals are collected and performance data is available in Google Sheets.

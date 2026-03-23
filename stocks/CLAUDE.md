@@ -48,6 +48,7 @@ Claude Code must create a .env template file on first run.
 SLACK_WEBHOOK_URL=your-slack-webhook-url-here
 N8N_WEBHOOK_URL=to-be-generated-when-n8n-workflow-is-built
 GOOGLE_SHEET_ID=1vN89Q3uDdH1HpLrx1ER8RavyChJ6IReh13oZSzE64ro
+BENZINGA_API_KEY=your-benzinga-api-key-here
 
 ---
 
@@ -89,6 +90,13 @@ Scrape all four sources on every run. Reuters is NOT used.
 | Benzinga Ratings API | Analyst upgrades/downgrades with firm, rating, PT | HIGH | Active — tier-1 firm filter, today-only date filter |
 | Benzinga News API | Breaking news filtered to 37 high-momentum tickers | HIGH | Active — 100% ticker rate via stocks array |
 | Yahoo Finance RSS | General market context/backup | LOW | Partially active — content varies, Pattern 2 extraction working |
+
+### Benzinga API Note
+Benzinga is the approved paid data source for this pipeline. Both Benzinga
+functions (fetch_benzinga_ratings() and fetch_benzinga_news()) live in
+fetch_news.py and use BENZINGA_API_KEY from .env. These are the primary
+high-quality news sources — never remove or replace them with free
+alternatives.
 
 ### SEC EDGAR RSS URL
 https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&output=atom
@@ -204,7 +212,7 @@ Do NOT manually create this workflow — use MCP tools only.
 - Do NOT touch the existing n8n Droplet under any circumstances
 - Do NOT install packages without adding them to requirements.txt
 - Do NOT create files outside the project directory
-- Do NOT use any paid APIs
+- Do NOT use any paid APIs except Benzinga (BENZINGA_API_KEY in .env — approved and active)
 - Do NOT hardcode credentials — always use .env
 - Do NOT commit the .env file — it must be in .gitignore
 - Do NOT manually create n8n workflows — use MCP tools only
@@ -286,8 +294,7 @@ brain.py uses `ZoneInfo("America/New_York")` which auto-adjusts for EST/EDT.
    score the same as actual earnings beats (both match "earnings" keyword and
    get 9/10). SEC EDGAR Item numbers now provide definitive classification for
    8-K filings, but Stock Titan and Yahoo headlines still rely on keyword
-   heuristics. Improvement: replace keyword matching with LLM-based
-   classification using Claude Haiku API for headline analysis.
+   heuristics. Improvement: Replace keyword matching with FinBERT (free, local, 97% accuracy on financial text). See Master Roadmap Phase 1 Session P1-2. Do NOT use Claude Haiku API.
 
 4. **No backtesting module exists yet** — planned future build after 20+
    signals are collected and performance data is available in Google Sheets.

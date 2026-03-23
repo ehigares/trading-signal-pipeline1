@@ -18,7 +18,7 @@
 
 ---
 
-## Project Status: PRE-BUILD — SETUP PHASE
+## Project Status: ALL PHASES COMPLETE — PIPELINE LIVE ON DROPLET
 
 ---
 
@@ -38,7 +38,7 @@ Complete these before writing any code. Check off as done.
 - [x] Google Sheets credential linked in n8n UI and workflow activated
 - [x] n8n webhook tested with sample payload and row confirmed in Google Sheet
 - [x] Code pulled to Trading Droplet via git pull
-- [ ] Cron jobs configured on Trading Droplet (9:15am, 12pm, 3pm EST)
+- [x] Cron jobs configured on Trading Droplet (9:15am, 12pm, 3pm EST)
 - [x] Google Sheet headers confirmed (see CLAUDE.md for column names)
 
 ---
@@ -54,8 +54,8 @@ good reason — document any changes here.
 | n8n used only for Google Sheets logging | Keeps n8n role focused and low-risk |
 | Reuters dropped as news source | Too slow for day trading — replaced with faster sources |
 | SEC EDGAR 8-K RSS as primary source | Official filings hit EDGAR before mainstream media |
-| Stock Titan added as HIGH priority source | Real-time breaking news with AI sentiment analysis |
-| Finviz added as MEDIUM priority source | Best source for analyst upgrades and downgrades |
+| Benzinga News API replaces Stock Titan | Real-time breaking news filtered to 37 high-momentum tickers |
+| Benzinga Ratings API replaces Finviz | Tier-1 analyst upgrades and downgrades with structured price target data |
 | Stock universe expanded to 4 indexes | S&P 500 + Nasdaq 100 alone too limiting on slow news days |
 | Russell 1000 added to universe | Adds 500+ quality large-caps previously missed |
 | ETFs added (SPY, QQQ, IWM only) | Always liquid, always have catalysts |
@@ -110,10 +110,10 @@ good reason — document any changes here.
 - [x] Push to GitHub, pull to Droplet
 
 ### Phase 6 — Scheduling & Go Live
-- [ ] Configure cron jobs on Trading Droplet
-- [ ] Run live test at 9:15am on a market day
-- [ ] Verify signal arrives in Slack and logs to Google Sheet
-- [ ] Monitor for 3 consecutive trading days before considering stable
+- [x] Configure cron jobs on Trading Droplet
+- [x] Run live test at 9:15am on a market day
+- [x] Verify signal arrives in Slack and logs to Google Sheet
+- [x] Monitor for 3 consecutive trading days before considering stable
 
 ---
 
