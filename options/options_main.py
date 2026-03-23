@@ -18,6 +18,7 @@ Error handling:
 """
 
 import importlib
+import json
 import logging
 import os
 import sys
@@ -28,6 +29,8 @@ from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
+
+import options_position_tracker
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 EASTERN = ZoneInfo("America/New_York")
@@ -132,6 +135,13 @@ def main():
     now = datetime.now(EASTERN).isoformat(timespec="seconds")
     logger.info(f"=== OPTIONS PIPELINE START === {now}")
 
+    # Load position tracker (failure-safe)
+    tracker = None
+    try:
+        tracker = options_position_tracker.load_tracker()
+    except Exception as e:
+        logger.warning(f"Position tracker load failed: {e} — continuing without it")
+
     skip_downstream = False
 
     for script_name in SCRIPTS:
@@ -144,6 +154,30 @@ def main():
         if not success and script_name in CRITICAL_SCRIPTS:
             logger.error(f"Critical script {script_name} failed - skipping formatter and logger")
             skip_downstream = True
+
+        # After options_brain succeeds, check position tracker
+        if script_name == "options_brain" and success and tracker is not None:
+            try:
+                signal_path = SCRIPT_DIR / "options_signal.json"
+                with open(signal_path, "r", encoding="utf-8") as f:
+                    signal_data = json.load(f)
+
+                if not signal_data.get("no_signal", False):
+                    ticker = signal_data.get("ticker", "")
+                    if ticker and options_position_tracker.already_signaled_today(ticker, tracker):
+                        logger.warning(f"[SKIP] {ticker} already signaled today — overwriting to no_signal")
+                        no_signal = {
+                            "timestamp": datetime.now(EASTERN).isoformat(timespec="seconds"),
+                            "no_signal": True,
+                            "reason": "Already signaled today",
+                        }
+                        with open(signal_path, "w", encoding="utf-8") as f:
+                            json.dump(no_signal, f, indent=2, ensure_ascii=False)
+                    elif ticker:
+                        tracker = options_position_tracker.record_signal(ticker, tracker)
+                        options_position_tracker.save_tracker(tracker)
+            except Exception as e:
+                logger.warning(f"Position tracker check failed: {e} — continuing without it")
 
     total_time = round(time.time() - pipeline_start, 1)
     now = datetime.now(EASTERN).isoformat(timespec="seconds")

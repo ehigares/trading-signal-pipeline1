@@ -14,6 +14,8 @@ from zoneinfo import ZoneInfo
 import requests
 from dotenv import load_dotenv
 
+import position_tracker
+
 load_dotenv()
 
 EASTERN = ZoneInfo("America/New_York")
@@ -67,6 +69,13 @@ def main():
     print(f"  {now.strftime('%B %d, %Y %I:%M %p EST')}")
     print(f"{'='*60}")
 
+    # ── Load position tracker (failure-safe) ──
+    tracker = None
+    try:
+        tracker = position_tracker.load_tracker()
+    except Exception as e:
+        print(f"  [WARN] Position tracker load failed: {e} — continuing without it", file=sys.stderr)
+
     # ── Step 1: fetch_news.py ──
     print(f"\n[1/5] fetch_news.py")
     success, output = run_script("fetch_news.py")
@@ -105,6 +114,31 @@ def main():
             return
     except (FileNotFoundError, json.JSONDecodeError):
         pass
+
+    # ── Position tracker: skip duplicate tickers ──
+    try:
+        if tracker is not None:
+            ticker = best_signal.get("ticker", "")
+            if ticker and position_tracker.already_signaled_today(ticker, tracker):
+                print(f"\n[SKIP] {ticker} already signaled today — skipping to prevent duplicate")
+                # Overwrite best_signal.json with no-signal
+                with open(os.path.join(SCRIPT_DIR, "best_signal.json"), "w", encoding="utf-8") as f:
+                    json.dump({"signal": False, "reason": "Already signaled today"}, f, indent=2)
+                print("[3/5] Skipping generator.py (duplicate)")
+                print("[4/5] Running slack_formatter.py (no-signal message)...")
+                s4_ok, s4_out = run_script("slack_formatter.py")
+                print(s4_out.rstrip())
+                print("[5/5] Skipping logger.py (duplicate)")
+                print(f"\n{'='*60}")
+                print(f"  Pipeline complete — duplicate ticker skipped")
+                print(f"{'='*60}")
+                return
+            # Record this ticker and save
+            if ticker:
+                tracker = position_tracker.record_signal(ticker, tracker)
+                position_tracker.save_tracker(tracker)
+    except Exception as e:
+        print(f"  [WARN] Position tracker check failed: {e} — continuing without it", file=sys.stderr)
 
     # ── Step 3: generator.py ──
     print(f"\n[3/5] generator.py")
