@@ -15,7 +15,6 @@ from pathlib import Path
 
 import feedparser
 import requests
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -95,7 +94,7 @@ def classify_options_catalyst(headline: str) -> str:
     if any(w in h for w in ["earnings", "revenue", "eps", "quarterly results",
                              "q1 ", "q2 ", "q3 ", "q4 ", "financial results",
                              "reports q"]):
-        return "EARNINGS_BEAT"  # Default to beat; brain.py will refine
+        return "EARNINGS_BEAT"  # Default to beat; FinBERT (Phase 1 Session P1-2) will replace this heuristic
 
     # Analyst actions
     if any(w in h for w in ["upgrade", "price target raise", "buy rating",
@@ -129,7 +128,7 @@ def classify_options_catalyst(headline: str) -> str:
             return "MACRO_POSITIVE"
         if any(w in h for w in ["miss", "weak", "negative", "hike", "hawkish"]):
             return "MACRO_NEGATIVE"
-        return "MACRO_POSITIVE"  # Default; brain.py will refine
+        return "MACRO_POSITIVE"  # Default; FinBERT (Phase 1 Session P1-2) will replace this heuristic
 
     return "OTHER"
 

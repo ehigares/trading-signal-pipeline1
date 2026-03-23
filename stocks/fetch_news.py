@@ -12,7 +12,6 @@ from datetime import datetime, timezone, timedelta
 
 import feedparser
 import requests
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 load_dotenv()
