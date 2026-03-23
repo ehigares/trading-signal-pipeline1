@@ -302,6 +302,24 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 10 — 2026-03-22
+**Status:** P0-1a — Timezone fix + mechanical cleanup across both pipelines
+**Completed:**
+- Replaced hardcoded `EST = timezone(timedelta(hours=-5))` with `EASTERN = ZoneInfo("America/New_York")` in all 5 stocks pipeline files: `fetch_news.py`, `generator.py`, `main.py`, `slack_formatter.py`, `logger.py`. This is the same fix applied to `brain.py` in Session 3 — now all stocks files use ZoneInfo for automatic EST/EDT handling.
+- Renamed `now_est()` to `now_eastern()` and updated all call sites in all 5 files.
+- Removed `"3:00 PM"` from `SCAN_TIMES` in `slack_formatter.py` — the 3pm cron run fires at market close and brain.py blocks signal generation at that time, so it was never a functional scan window.
+- Updated `get_next_scan_time()` return strings from "EST" to "EDT" since the pipeline runs during EDT season.
+- Ran full pipeline (`main.py`) on Droplet — completed successfully (no signal, outside market hours). All timestamps now show `-04:00` (EDT) via ZoneInfo.
+- Verified `grep -r "timedelta(hours=" /root/trading-pipeline/stocks/` returns zero results in code files.
+- Committed and pushed to GitHub, pulled to Droplet.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor Monday cron runs to confirm all stocks scripts produce correct EDT timestamps
+- Begin FinBERT integration planning (Phase 1 Session P1-2)
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]

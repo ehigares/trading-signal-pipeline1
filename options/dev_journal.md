@@ -358,6 +358,24 @@ Claude Code must add an entry here after every session.
 - Begin FinBERT integration planning (Phase 1 Session P1-2) to replace keyword-based catalyst classification
 
 ---
+## Session 9 — 2026-03-22
+**Status:** P0-1a — Timezone fix + mechanical cleanup across options pipeline
+**Completed:**
+- Replaced hardcoded `EDT = timezone(timedelta(hours=-4))` with `EASTERN = ZoneInfo("America/New_York")` in all 7 options pipeline files: `fetch_options_news.py`, `options_brain.py`, `options_contract.py`, `options_universe.py`, `options_formatter.py`, `options_main.py`, `options_logger.py`. ZoneInfo auto-adjusts for EST/EDT transitions.
+- Renamed `now_edt()` to `now_eastern()` (and `now_edt_display()`/`now_edt_date()` to `now_eastern_display()`/`now_eastern_date()`) and updated all call sites.
+- Removed DEBUG print statements from `fetch_options_news.py` (SEC EDGAR response/entries debug) and `options_universe.py` (per-ticker raw values debug). These were added in Session 3 for diagnostics and are no longer needed.
+- Standardized source names in `fetch_options_news.py` to match stocks pipeline Title Case format: `SEC_EDGAR` → `SEC EDGAR`, `BENZINGA_RATINGS` → `Benzinga Ratings`, `BENZINGA_NEWS` → `Benzinga News`, `YAHOO` → `Yahoo Finance`.
+- Ran full pipeline (`options_main.py`) on Droplet — all scripts ran successfully. `options_contract.py` failed on expiration selection (weekend, no valid expirations) which correctly triggered the critical-script skip. No DEBUG lines in options.log output.
+- Verified `grep -r "timedelta(hours=" /root/trading-pipeline/options/` returns zero results in code files.
+- Committed and pushed to GitHub, pulled to Droplet.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor Monday 8:45am cron run to confirm all options scripts produce correct EDT timestamps
+- Verify source name standardization doesn't break options_universe.py filtering (it shouldn't — universe.py filters on `catalyst_type`, not `source`)
+- Begin FinBERT integration planning (Phase 1 Session P1-2)
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
