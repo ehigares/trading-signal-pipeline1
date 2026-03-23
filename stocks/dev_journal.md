@@ -320,6 +320,24 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 11 — 2026-03-22
+**Status:** P0-1b — Position tracker for duplicate signal prevention
+**Completed:**
+- Created `stocks/position_tracker.py` — manages `position_tracker.json` to prevent the same ticker from generating duplicate signals within a single trading day. Four functions: `load_tracker()`, `save_tracker()`, `already_signaled_today()`, `record_signal()`. Automatic daily reset when the date changes (using ZoneInfo). Also tracks `daily_loss_count` for the existing circuit breaker rule.
+- Integrated position tracker into `stocks/main.py` — loads tracker at start of `main()`, checks for duplicate ticker after brain.py returns a signal (before generator.py), records ticker on first signal. If duplicate detected: overwrites best_signal.json with no-signal reason "Already signaled today", runs slack_formatter.py for no-signal message, skips generator.py and logger.py. All tracker calls wrapped in try/except — tracker failures log warnings but never crash the pipeline.
+- Added `position_tracker.json` and `options_position_tracker.json` to `.gitignore`.
+- Deployed to Droplet and tested:
+  - First run: pipeline returned no-signal (outside market hours). Tracker loaded without error but no file created (no signal to record — expected).
+  - Manually created `position_tracker.json` with `"signals_fired_today": ["NVDA"]` and today's date. Second run loaded the tracker without error.
+- Committed and pushed to GitHub, pulled to Droplet.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Run on a market day to verify the full signal → record → duplicate-skip flow
+- Verify the daily reset works when the date rolls over (run on two consecutive days)
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]

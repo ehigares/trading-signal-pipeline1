@@ -376,6 +376,22 @@ Claude Code must add an entry here after every session.
 - Begin FinBERT integration planning (Phase 1 Session P1-2)
 
 ---
+## Session 10 — 2026-03-22
+**Status:** P0-1b — Position tracker for duplicate signal prevention
+**Completed:**
+- Created `options/options_position_tracker.py` — manages `options_position_tracker.json` to prevent the same ticker from generating duplicate signals within a single trading day. Same four functions as stocks tracker: `load_tracker()`, `save_tracker()`, `already_signaled_today()`, `record_signal()`. Automatic daily reset using ZoneInfo. Also tracks `daily_loss_count`.
+- Integrated position tracker into `options/options_main.py` — loads tracker at start of `main()`, checks for duplicate ticker after options_brain runs (before options_contract). If brain selects a ticker that was already signaled today: overwrites `options_signal.json` with `no_signal=True` and reason "Already signaled today", pipeline continues and formatter/logger handle the no-signal case. If new ticker: records it and saves tracker. All tracker calls wrapped in try/except — tracker failures log warnings but never crash the pipeline.
+- Deployed to Droplet and tested:
+  - First run: FICO selected (MA_ANNOUNCEMENT, Score 8, CALL). Tracker created with `"signals_fired_today": ["FICO"]`.
+  - Second run: FICO selected again by brain, but tracker detected duplicate — logged `[SKIP] FICO already signaled today — overwriting to no_signal`. options_contract.py correctly received no_signal and wrote no-signal to options_contract.json.
+- Committed and pushed to GitHub, pulled to Droplet.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Run on a market day to verify the full signal → record → duplicate-skip flow with live data
+- Verify the daily reset works when the date rolls over
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
