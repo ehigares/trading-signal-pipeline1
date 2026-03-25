@@ -16,6 +16,14 @@ from zoneinfo import ZoneInfo
 SCRIPT_DIR = Path(__file__).resolve().parent
 EASTERN = ZoneInfo("America/New_York")
 
+# FinBERT shadow scorer — import gracefully
+try:
+    import finbert_scorer
+    FINBERT_AVAILABLE = finbert_scorer.FINBERT_AVAILABLE
+except ImportError:
+    FINBERT_AVAILABLE = False
+    finbert_scorer = None
+
 MIN_SCORE = 7
 
 # Catalyst scoring ranges: (catalyst_type, score_range, direction)
@@ -136,6 +144,27 @@ def main():
             "iv_rank": best["iv_rank"],
             "market_cap": best["market_cap"],
         }
+
+    # ── FinBERT shadow scoring (observation only) ──
+    if FINBERT_AVAILABLE and finbert_scorer and not output.get(
+            "no_signal", True):
+        try:
+            finbert_result = finbert_scorer.score_headline(
+                best["headline"],
+                ""
+            )
+            finbert_scorer.log_shadow_comparison(
+                ticker=best["ticker"],
+                headline=best["headline"],
+                keyword_type=best["catalyst_type"],
+                keyword_score=best["catalyst_score"],
+                finbert_result=finbert_result,
+            )
+            print(f"  [FINBERT] {finbert_result['sentiment']} "
+                  f"(score: {finbert_result['score']:.3f}, "
+                  f"confidence: {finbert_result['confidence']:.3f})")
+        except Exception as e:
+            print(f"  [FINBERT] Shadow scoring failed: {e}")
 
     output_path = SCRIPT_DIR / "options_signal.json"
     with open(output_path, "w", encoding="utf-8") as f:

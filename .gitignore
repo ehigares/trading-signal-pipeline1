@@ -12,3 +12,5 @@ options_contract.json
 position_tracker.json
 options_position_tracker.json
 regime_state.json
+finbert_shadow_log.json
+options_finbert_shadow_log.json

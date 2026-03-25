@@ -15,6 +15,14 @@ import yfinance as yf
 
 EASTERN = ZoneInfo("America/New_York")
 
+# FinBERT shadow scorer — import gracefully
+try:
+    import finbert_scorer
+    FINBERT_AVAILABLE = finbert_scorer.FINBERT_AVAILABLE
+except ImportError:
+    FINBERT_AVAILABLE = False
+    finbert_scorer = None
+
 # ── Catalyst scoring ────────────────────────────────────────────────
 CATALYST_SCORES = {
     "earnings": (9, 10),
@@ -398,6 +406,27 @@ def main():
                 json.dump(best_signal, f, indent=2)
             print(f"\n  SELECTED: {ticker} — {candidate['headline'][:60]}")
             print(f"  Score: {candidate['catalyst_score']}/10 | Index: {candidate['index']}")
+
+            # ── FinBERT shadow scoring (observation only) ──
+            if FINBERT_AVAILABLE and finbert_scorer:
+                try:
+                    finbert_result = finbert_scorer.score_headline(
+                        candidate["headline"],
+                        ""
+                    )
+                    finbert_scorer.log_shadow_comparison(
+                        ticker=candidate["ticker"],
+                        headline=candidate["headline"],
+                        keyword_type=candidate["catalyst_type"],
+                        keyword_score=candidate["catalyst_score"],
+                        finbert_result=finbert_result,
+                    )
+                    print(f"  [FINBERT] {finbert_result['sentiment']} "
+                          f"(score: {finbert_result['score']:.3f}, "
+                          f"confidence: {finbert_result['confidence']:.3f})")
+                except Exception as e:
+                    print(f"  [FINBERT] Shadow scoring failed: {e}")
+
             return
         else:
             print(f"FAILED ({reason})")
