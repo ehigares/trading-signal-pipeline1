@@ -392,6 +392,20 @@ Claude Code must add an entry here after every session.
 - Verify the daily reset works when the date rolls over
 
 ---
+## Session 11 — 2026-03-25
+**Status:** P0-3 — Confirmed options_brain.py design is intentional (no code change)
+**Completed:**
+- Reviewed options_brain.py CATALYST_SCORES during stocks pipeline P0-3 session. The options pipeline treats all catalyst types with fixed scores regardless of market conditions — this is confirmed as intentional. The options pipeline is bidirectional (calls and puts), so ANALYST_DOWNGRADE correctly maps to score 8 with PUT direction.
+- No trend filter (20-day MA) exists in the options pipeline — also intentional. Options are positioned around catalysts, not trend-following.
+- These design decisions will be revisited in Phase 2 when the regime engine is added (market regime awareness for score adjustments).
+- No code changes to options files this session.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Run on a market day to verify the full signal → record → duplicate-skip flow with live data
+- Verify the daily reset works when the date rolls over
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals

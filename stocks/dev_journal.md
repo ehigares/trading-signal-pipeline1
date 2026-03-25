@@ -338,6 +338,28 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 12 — 2026-03-25
+**Status:** P0-3 — Event-type beta filter, blackout fix, explicit downgrade score, dead code removal
+**Completed:**
+- Replaced flat Beta > 1.5 filter in `apply_filters()` with event-type specific logic:
+  - `earnings`/`merger`: No beta requirement (binary catalysts move regardless of beta). ATR threshold lowered to 2.0%.
+  - `upgrade`: Beta > 1.0 (tier-1 analyst action needs some momentum). ATR threshold lowered to 1.5%.
+  - `general`/`leadership`: Beta > 1.5 unchanged. ATR threshold remains 3.0%.
+- Added `catalyst_type` parameter to `apply_filters()` signature, updated call site in `main()` to pass `candidate["catalyst_type"]`.
+- Fixed unreachable blackout code in `check_trading_rules()`: the `if time_val >= market_close` check caught everything at 3:00 PM+, making the blackout window (3:00-3:30 PM) unreachable. Restructured to check weekend first, then before-open, then blackout, then after-hours.
+- Updated all time-check return strings from "EST" to "EDT" to match the P0-1a timezone fix.
+- Added `"downgrade": (0, 0)` to CATALYST_SCORES — makes it explicit that the long-only system never signals on downgrades. Previously the missing key silently fell through to `general` (score 3-4).
+- Removed unused `ACCOUNT_SIZE = 50_000` constant from `generator.py` — defined but never referenced.
+- Deployed to Droplet and ran full pipeline during market hours (12:03 PM EDT). 23 candidates evaluated, all failed filters (volume, market cap, beta, or trend). Filter output correctly shows event-type specific messages: "Beta 1.10 < 1.5 for general signal" for leadership type, earnings types correctly skip beta check.
+- Verified blackout logic: 15:15 → "In 3:00-3:30 PM blackout", 15:45 → "After market hours", 8:30 → "Before market hours". All correct.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor next market-day cron runs to see event-type filters in action with fresh earnings/upgrade catalysts
+- PAYX and CTAS (earnings, score 9) failed only on volume — these would pass on higher-volume days, confirming the beta skip works correctly
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
