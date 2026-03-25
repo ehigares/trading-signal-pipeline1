@@ -33,19 +33,20 @@ logger = logging.getLogger("options_logger")
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
-_log_fmt = logging.Formatter(
-    "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-_file_handler = logging.FileHandler(str(log_path))
-_file_handler.setLevel(logging.INFO)
-_file_handler.setFormatter(_log_fmt)
-logger.addHandler(_file_handler)
+if not logger.handlers:
+    _log_fmt = logging.Formatter(
+        "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    _file_handler = logging.FileHandler(str(log_path))
+    _file_handler.setLevel(logging.INFO)
+    _file_handler.setFormatter(_log_fmt)
+    logger.addHandler(_file_handler)
 
-_console_handler = logging.StreamHandler(sys.stdout)
-_console_handler.setLevel(logging.INFO)
-_console_handler.setFormatter(_log_fmt)
-logger.addHandler(_console_handler)
+    _console_handler = logging.StreamHandler(sys.stdout)
+    _console_handler.setLevel(logging.INFO)
+    _console_handler.setFormatter(_log_fmt)
+    logger.addHandler(_console_handler)
 
 
 def now_eastern_display() -> str:
@@ -103,29 +104,22 @@ def build_no_signal_payload() -> dict:
 def post_to_webhook(payload: dict) -> bool:
     """POST payload to n8n webhook. Retries once after 5 seconds on failure."""
     if not WEBHOOK_URL:
-        msg = "OPTIONS_N8N_WEBHOOK_URL not set in .env"
-        print(f"[ERROR] {msg}", file=sys.stderr)
-        logger.error(msg)
+        logger.error("OPTIONS_N8N_WEBHOOK_URL not set in .env")
         return False
 
     for attempt in range(2):
         try:
             resp = requests.post(WEBHOOK_URL, json=payload, timeout=15)
             if resp.status_code == 200:
-                print(f"  Webhook POST successful (attempt {attempt + 1}).")
-                logger.info("Webhook POST successful")
+                logger.info("Webhook POST successful (attempt %d)", attempt + 1)
                 return True
             else:
-                msg = f"Webhook returned {resp.status_code}: {resp.text}"
-                print(f"  [WARN] {msg}", file=sys.stderr)
-                logger.warning(msg)
+                logger.warning("Webhook returned %d: %s", resp.status_code, resp.text)
         except Exception as e:
-            msg = f"Webhook POST failed: {e}"
-            print(f"  [WARN] {msg}", file=sys.stderr)
-            logger.warning(msg)
+            logger.warning("Webhook POST failed: %s", e)
 
         if attempt == 0:
-            print("  Retrying in 5 seconds...")
+            logger.info("Retrying in 5 seconds...")
             time.sleep(5)
 
     logger.error("Webhook POST failed after 2 attempts")
@@ -136,31 +130,26 @@ def main():
     """Read options_contract.json and POST to n8n webhook."""
     contract_path = SCRIPT_DIR / "options_contract.json"
     if not contract_path.exists():
-        msg = "options_contract.json not found. Run options_contract.py first."
-        print(f"[ERROR] {msg}", file=sys.stderr)
-        logger.error(msg)
+        logger.error("options_contract.json not found. Run options_contract.py first.")
         sys.exit(1)
 
     with open(contract_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    now = datetime.now(EASTERN).isoformat(timespec="seconds")
-
     if data.get("no_signal", False):
-        print(f"[{now}] No signal today - logging no-signal row...")
+        logger.info("No signal today - logging no-signal row...")
         payload = build_no_signal_payload()
     else:
         ticker = data.get("ticker", "???")
-        print(f"[{now}] Logging signal for {ticker} to Google Sheets...")
+        logger.info("Logging signal for %s to Google Sheets...", ticker)
         payload = build_signal_payload(data)
 
     success = post_to_webhook(payload)
     if not success:
-        print("[ERROR] Failed to log to Google Sheets.", file=sys.stderr)
+        logger.error("Failed to log to Google Sheets.")
         # Don't sys.exit — spec says do not crash the pipeline
 
-    now = datetime.now(EASTERN).isoformat(timespec="seconds")
-    print(f"[{now}] Done.")
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
