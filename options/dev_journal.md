@@ -419,6 +419,21 @@ Claude Code must add an entry here after every session.
 - Investigate PAYX expiration failure — may need wider DTE range or different expiration logic for post-earnings plays
 
 ---
+## Session 13 — 2026-03-25
+**Status:** Bug fix — options_contract.py graceful no-signal exit
+**Completed:**
+- Replaced all three `sys.exit(1)` calls in `options_contract.py` `main()` with graceful no-signal exits. Previously, when no valid expiration, strike, or options chain was available, the script crashed with exit code 1. This caused `options_main.py` to log an ERROR, skip formatter and logger, and send a Slack error alert — even though "no valid contract today" is a normal operational condition, not a crash.
+- The three failure points now write `{"no_signal": true, "reason": "..."}` to `options_contract.json` and `return` cleanly (exit code 0), matching how `options_brain.py` handles no-signal cases.
+- Tested on Droplet with PAYX (EARNINGS_BEAT) which has no valid expirations in 1-21 DTE:
+  - `options_contract.py` standalone: prints `[NO CONTRACT]`, exit code 0, writes no_signal JSON
+  - Full pipeline via `options_main.py`: all 6 scripts complete, formatter sends no-signal Slack message, logger logs to Google Sheets, pipeline shows COMPLETE with zero ERROR lines in options.log
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor next market morning cron run to confirm the graceful exit path works end-to-end from cron
+- Clean up the position tracker test data (`options_position_tracker.json`) before next live run
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
