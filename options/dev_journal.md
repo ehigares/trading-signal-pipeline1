@@ -506,6 +506,21 @@ Claude Code must add an entry here after every session.
 
 ---
 
+## Session 18 — 2026-03-25
+**Status:** Bug fix — duplicate log lines in options_logger.py (round 2)
+**Completed:**
+- Session 12 fixed `logging.basicConfig()` → explicit handlers with `propagate=False`, but duplicate lines persisted. Root cause: `options_main.py` calls `importlib.reload(module)` (line 105), which re-executes module-level code and adds a second set of FileHandler + StreamHandler to the logger. Each `logger.info()` then emits twice.
+- Removed all redundant `print()` statements from `options_logger.py`. All output now goes exclusively through the named logger — eliminates a third copy when cron redirects stdout to the same `options.log` file.
+- Added `if not logger.handlers:` guard around handler setup to prevent handler accumulation on `importlib.reload()`.
+- Deployed to Droplet and ran full pipeline (`options_main.py`). Verified `grep 'Webhook POST' options.log` returns exactly one line. All `options_logger` messages appear once.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor next market morning cron run to confirm single log lines persist
+- Consider adding the same `if not logger.handlers:` guard to other pipeline scripts if they show similar duplication
+
+---
+
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
 - Delta unavailable on weekends from yfinance — shows "N/A (weekend)" in Slack, will be populated on weekday runs
