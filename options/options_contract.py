@@ -195,8 +195,18 @@ def main():
     # Step 1: Select expiration
     exp_date_str = select_expiration(ticker, catalyst_type, today)
     if not exp_date_str:
-        print("[ERROR] No valid expiration found within 1-21 DTE range.", file=sys.stderr)
-        sys.exit(1)
+        reason = f"No valid expiration found for {ticker_symbol} " \
+                 f"(catalyst: {catalyst_type})"
+        print(f"[NO CONTRACT] {reason}", file=sys.stderr)
+        output = {
+            "timestamp": now_eastern(),
+            "no_signal": True,
+            "reason": reason,
+        }
+        output_path = SCRIPT_DIR / "options_contract.json"
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(output, f, indent=2, ensure_ascii=False)
+        return
 
     exp_date = datetime.strptime(exp_date_str, "%Y-%m-%d").date()
     dte = (exp_date - today).days
@@ -206,17 +216,36 @@ def main():
     try:
         chain = ticker.option_chain(exp_date_str)
     except Exception as e:
-        print(f"[ERROR] Failed to fetch options chain for {exp_date_str}: {e}",
-              file=sys.stderr)
-        sys.exit(1)
+        reason = f"Failed to fetch options chain for {ticker_symbol} " \
+                 f"{exp_date_str}: {e}"
+        print(f"[NO CONTRACT] {reason}", file=sys.stderr)
+        output = {
+            "timestamp": now_eastern(),
+            "no_signal": True,
+            "reason": reason,
+        }
+        output_path = SCRIPT_DIR / "options_contract.json"
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(output, f, indent=2, ensure_ascii=False)
+        return
 
     chain_df = chain.calls if direction == "CALL" else chain.puts
 
     # Step 3: Select strike
     strike_result = select_strike(chain_df, stock_price, direction)
     if strike_result is None:
-        print("[ERROR] Could not find a valid strike.", file=sys.stderr)
-        sys.exit(1)
+        reason = f"No valid strike found for {ticker_symbol} " \
+                 f"{direction} at ${stock_price}"
+        print(f"[NO CONTRACT] {reason}", file=sys.stderr)
+        output = {
+            "timestamp": now_eastern(),
+            "no_signal": True,
+            "reason": reason,
+        }
+        output_path = SCRIPT_DIR / "options_contract.json"
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(output, f, indent=2, ensure_ascii=False)
+        return
 
     strike, delta, bid, ask = strike_result
     print(f"  Strike: ${strike}, Delta: {delta}, Bid: ${bid}, Ask: ${ask}")
