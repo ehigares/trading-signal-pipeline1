@@ -457,6 +457,20 @@ Claude Code must add an entry here after every session.
 - Verify PAYX (EARNINGS_BEAT) now finds a valid expiration with the wider 14-21 DTE window (was failing at 7-10)
 
 ---
+## Session 15 — 2026-03-25
+**Status:** P1-1 — Regime detector integration (shadow mode)
+**Completed:**
+- Added regime state loading to `options_main.py` at pipeline start. Reads `regime_state.json` from `stocks/` directory (written by stocks pipeline's `regime_detector.py`). Falls back to direct detection via `regime_detector` import if the file doesn't exist (e.g., options pipeline runs before stocks pipeline on a given day).
+- Shadow mode only — regime is logged (`[REGIME] NEUTRAL | VIX: 25.52`) but does not affect signal selection, filtering, or scoring.
+- Deployed to Droplet and ran full pipeline. `[REGIME]` line appears in options.log. Pipeline completes clean with no errors.
+- No changes to options_brain.py, options_contract.py, or any filter logic.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor cron runs to confirm regime appears in options.log daily
+- Phase 2 will use regime to adjust options scoring (e.g., suppress CALL signals in BEAR regime, suppress PUT signals in BULL regime)
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals

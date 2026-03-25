@@ -387,6 +387,31 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 15 — 2026-03-25
+**Status:** P1-1 — Regime detector shadow mode
+**Completed:**
+- Created `stocks/regime_detector.py` — standalone module that detects market regime from SPY price data (50-day MA, 200-day MA, golden cross) and VIX. Four regimes: BULL (above 200MA + golden cross + VIX<20), BEAR (below 200MA + no golden cross, or VIX>=30 + below 200MA), CRISIS (VIX>=50), NEUTRAL (everything else). Saves to `regime_state.json`.
+- Integrated regime detection into `stocks/main.py` at pipeline start (before Step 1). Wrapped in try/except — never blocks pipeline. Prints `[REGIME] NEUTRAL | VIX: 25.52 | SPY: $657.63`.
+- Added regime injection into `best_signal.json` after brain.py runs — main.py reads the file back, adds `"regime"` field, and writes it. Only for valid signals (not no-signal).
+- Added regime to Slack messages in `slack_formatter.py`:
+  - Signal messages show regime emoji + label in the Type/Score line
+  - No-signal messages show regime + VIX from `regime_state.json`
+- Added `"regime"` field to logger.py payload for Google Sheets logging.
+- Added regime loading to `options/options_main.py` — reads `regime_state.json` from stocks/ directory. Falls back to direct detection if stocks pipeline hasn't run yet.
+- Added `regime_state.json` to `.gitignore`.
+- Deployed to Droplet and tested:
+  - `regime_detector.py` standalone: NEUTRAL (SPY $658.03, above 200MA, golden cross, VIX 25.54)
+  - Stocks pipeline: [REGIME] line appears at top, pipeline completes clean
+  - Options pipeline: [REGIME] line in options.log, pipeline completes clean
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor cron runs to confirm regime appears in pipeline.log and options.log
+- When a signal is generated, verify regime field flows to best_signal.json → trade_signal.json → Google Sheets
+- Current regime is NEUTRAL (SPY above 200MA but below 50MA, VIX elevated at 25.52)
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
