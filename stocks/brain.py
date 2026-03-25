@@ -20,6 +20,7 @@ CATALYST_SCORES = {
     "earnings": (9, 10),
     "merger": (9, 10),
     "upgrade": (7, 8),
+    "downgrade": (0, 0),  # Long-only system — never signal on downgrades
     "leadership": (5, 6),
     "general": (3, 4),
 }
@@ -129,18 +130,18 @@ def check_trading_rules() -> str | None:
     market_close = 15 * 60       # 3:00 PM
     blackout_end = 15 * 60 + 30  # 3:30 PM
 
-    if time_val < market_open:
-        return f"Before market hours ({now.strftime('%I:%M %p')} EST)"
-    if time_val >= market_close:
-        return f"After market hours ({now.strftime('%I:%M %p')} EST)"
-    if market_close <= time_val < blackout_end:
-        return f"In 3:00-3:30 PM blackout ({now.strftime('%I:%M %p')} EST)"
     if now.weekday() >= 5:
         return "Weekend — markets closed"
+    if time_val < market_open:
+        return f"Before market hours ({now.strftime('%I:%M %p')} EDT)"
+    if market_close <= time_val < blackout_end:
+        return f"In 3:00-3:30 PM blackout ({now.strftime('%I:%M %p')} EDT)"
+    if time_val >= blackout_end:
+        return f"After market hours ({now.strftime('%I:%M %p')} EDT)"
     return None
 
 
-def apply_filters(ticker: str, is_etf: bool) -> tuple[bool, str]:
+def apply_filters(ticker: str, is_etf: bool, catalyst_type: str = "general") -> tuple[bool, str]:
     """Apply all stock filters using yfinance. Returns (passed, reason)."""
     try:
         stock = yf.Ticker(ticker)
@@ -160,11 +161,23 @@ def apply_filters(ticker: str, is_etf: bool) -> tuple[bool, str]:
         if avg_volume < 5_000_000:
             return False, f"Avg volume {avg_volume/1e6:.1f}M < 5M"
 
-        # ── Beta filter (skip for ETFs) ──
+        # ── Event-type specific filters replace flat Beta requirement ──
         if not is_etf:
-            beta = info.get("beta", 0) or 0
-            if beta < 1.5:
-                return False, f"Beta {beta:.2f} < 1.5"
+            if catalyst_type in ("earnings", "merger"):
+                # Binary catalyst — stock moves regardless of beta
+                # Only require ATR > 2% (checked below)
+                # No beta requirement
+                pass
+            elif catalyst_type == "upgrade":
+                # Tier-1 analyst action — needs some momentum
+                beta = info.get("beta", 0) or 0
+                if beta < 1.0:
+                    return False, f"Beta {beta:.2f} < 1.0 for upgrade signal"
+            else:
+                # General news or leadership — needs volatile stock
+                beta = info.get("beta", 0) or 0
+                if beta < 1.5:
+                    return False, f"Beta {beta:.2f} < 1.5 for general signal"
 
         # ── Price data for ATR, MA, and volume confirmation ──
         hist = stock.history(period="1mo", interval="1d")
@@ -188,10 +201,16 @@ def apply_filters(ticker: str, is_etf: bool) -> tuple[bool, str]:
         if current_price <= 0:
             return False, "Invalid price"
 
-        # ── ATR daily range > 3% ──
+        # ── ATR daily range — event-type specific thresholds ──
         atr_pct = (atr / current_price) * 100
-        if atr_pct < 3.0:
-            return False, f"ATR range {atr_pct:.1f}% < 3%"
+        if catalyst_type in ("earnings", "merger"):
+            atr_threshold = 2.0
+        elif catalyst_type == "upgrade":
+            atr_threshold = 1.5
+        else:
+            atr_threshold = 3.0
+        if atr_pct < atr_threshold:
+            return False, f"ATR range {atr_pct:.1f}% < {atr_threshold}%"
 
         # ── Trend: price above 20-day MA ──
         if len(close) >= 20:
@@ -317,7 +336,7 @@ def main():
         print(f"    {ticker} (score={candidate['catalyst_score']}, "
               f"type={candidate['catalyst_type']})...", end=" ")
 
-        passed, reason = apply_filters(ticker, is_etf)
+        passed, reason = apply_filters(ticker, is_etf, candidate["catalyst_type"])
         if passed:
             print("PASSED")
             # Build best_signal.json

@@ -15,7 +15,6 @@ import yfinance as yf
 
 EASTERN = ZoneInfo("America/New_York")
 
-ACCOUNT_SIZE = 50_000
 MAX_RISK = 500       # $500 max risk per trade (1% of account)
 REWARD_RATIO = 2.0   # 2:1 reward-to-risk
 ATR_STOP_MULT = 0.5  # Stop = Entry - (ATR * 0.5)
