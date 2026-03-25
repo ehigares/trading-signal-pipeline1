@@ -360,6 +360,18 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 13 — 2026-03-25
+**Status:** Bug fix — hardcoded "EST" label in stocks/main.py header
+**Completed:**
+- Fixed hardcoded `"EST"` string literal in `main.py` header line. The time value was already correct (ZoneInfo-aware from P0-1a) but the display label always said "EST" even during EDT season. Changed `now.strftime('%B %d, %Y %I:%M %p EST')` to `now.strftime('%B %d, %Y %I:%M %p') + " EDT"`.
+- Deployed to Droplet and confirmed header now shows "March 25, 2026 12:33 PM EDT".
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor next cron runs to confirm EDT label appears in pipeline.log
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]

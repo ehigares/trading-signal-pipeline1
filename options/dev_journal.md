@@ -406,6 +406,19 @@ Claude Code must add an entry here after every session.
 - Verify the daily reset works when the date rolls over
 
 ---
+## Session 12 — 2026-03-25
+**Status:** Bug fix — duplicate log lines in options_logger.py
+**Completed:**
+- Replaced `logging.basicConfig(filename=...)` in `options_logger.py` with explicit handler setup matching `options_main.py` pattern: named logger with `propagate=False`, FileHandler for `options.log`, StreamHandler for stdout. The old `basicConfig` configured the root logger, which caused every `logger.info()`/`logger.warning()` call to emit twice when cron redirected stdout to `options.log` (once via root's FileHandler, once via the redirect).
+- Deployed to Droplet and ran `options_logger.py` standalone. Verified `options.log` contains exactly one "Webhook POST successful" line — no duplicates.
+- Also ran full `options_main.py` pipeline. PAYX (EARNINGS_BEAT, score 9, CALL) passed all options filters but `options_contract.py` failed on expiration selection (no valid expiration in 1-21 DTE range). This is a data availability issue, not a code bug.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor next market morning cron run to confirm log lines appear once in options.log
+- Investigate PAYX expiration failure — may need wider DTE range or different expiration logic for post-earnings plays
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
