@@ -440,6 +440,28 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 17 — 2026-03-25
+**Status:** P1-3 — Sector corroboration shadow mode
+**Completed:**
+- Created `stocks/sector_check.py` — checks whether sector peers in the current news feed have positive or negative news that corroborates or contradicts the signal. 62 tickers mapped across 11 sectors (tech, software, consumer_tech, crypto_fintech, energy, defense, healthcare, consumer_staples, utilities, macro). Corroboration score: +0.5 per supporting peer, -0.5 per contradicting, capped at -2.0 to +2.0. Shadow log capped at 500 entries.
+- Integrated sector corroboration into `stocks/brain.py` — runs after FinBERT shadow scoring, before `return`. Prints `[SECTOR] {sector} | corroboration: {score} | supporting: [...] | contradicting: [...]`. Never affects signal selection.
+- Created `options/sector_check.py` — same as stocks version except logs to `options_sector_shadow_log.json` and includes options pipeline catalyst type names (EARNINGS_BEAT, ANALYST_UPGRADE, etc.) in POSITIVE/NEGATIVE_CATALYSTS sets.
+- Integrated sector corroboration into `options/options_brain.py` — runs after FinBERT shadow block, before output_path write. Uses `candidates` list as proxy for news_items since options_brain only receives filtered candidates.
+- Added `sector_shadow_log.json` and `options_sector_shadow_log.json` to `.gitignore`.
+- Tested sector_check directly on Droplet:
+  - NVDA upgrade + AMD/INTC upgrades: corroboration +1.0, sector "tech", supporting [AMD, INTC] — correct
+  - NVDA upgrade + AMD/INTC downgrades: corroboration -1.0, sector "tech", contradicting [AMD, INTC] — correct
+- Ran full stocks pipeline: completed clean, no signal today (all failed filters), sector check not triggered.
+- Ran full options pipeline: PAYX (EARNINGS_BEAT) selected. `[SECTOR] unknown | corroboration: +0.0` — PAYX not in sector map (payroll company, not a tracked sector). Expected behavior.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor cron runs to see sector corroboration scores accumulate in shadow logs
+- After 20+ entries, analyze whether sector corroboration correlates with signal quality
+- Consider expanding SECTOR_MAP if too many signals return "unknown"
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]

@@ -489,6 +489,22 @@ Claude Code must add an entry here after every session.
 - Benzinga headlines (with actual catalyst text) will produce better FinBERT signal than bare SEC EDGAR titles
 
 ---
+## Session 17 — 2026-03-25
+**Status:** P1-3 — Sector corroboration shadow mode
+**Completed:**
+- Created `options/sector_check.py` — checks whether sector peers have corroborating or contradicting news. Same sector map as stocks version (62 tickers, 11 sectors). Uses expanded catalyst type sets including options pipeline names (EARNINGS_BEAT, ANALYST_UPGRADE, MA_ANNOUNCEMENT, etc.). Logs to `options_sector_shadow_log.json`.
+- Integrated sector corroboration into `options/options_brain.py` — runs after FinBERT shadow block, only when a signal is selected. Uses `candidates` list as proxy for news items (options_brain doesn't load the full news feed directly).
+- Added `options_sector_shadow_log.json` to `.gitignore`.
+- Tested via full pipeline run: PAYX (EARNINGS_BEAT, score 9, CALL) triggered sector check. Result: `[SECTOR] unknown | corroboration: +0.0` — PAYX is a payroll/HR company not in the sector map. Expected behavior for unmapped tickers.
+- Pipeline completes clean with no errors.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor cron runs to see sector corroboration scores accumulate
+- After 20+ entries, analyze whether sector corroboration adds signal value
+- Consider expanding SECTOR_MAP for financial services (JPM, GS, BAC) and other sectors common in options universe
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
