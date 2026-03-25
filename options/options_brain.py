@@ -24,6 +24,14 @@ except ImportError:
     FINBERT_AVAILABLE = False
     finbert_scorer = None
 
+# Sector corroboration checker — import gracefully
+try:
+    import sector_check
+    SECTOR_CHECK_AVAILABLE = True
+except ImportError:
+    SECTOR_CHECK_AVAILABLE = False
+    sector_check = None
+
 MIN_SCORE = 7
 
 # Catalyst scoring ranges: (catalyst_type, score_range, direction)
@@ -165,6 +173,37 @@ def main():
                   f"confidence: {finbert_result['confidence']:.3f})")
         except Exception as e:
             print(f"  [FINBERT] Shadow scoring failed: {e}")
+
+    # ── Sector corroboration (shadow mode — observe only) ──
+    if SECTOR_CHECK_AVAILABLE and sector_check and not output.get(
+            "no_signal", True):
+        try:
+            # Use candidates list as proxy for news items
+            # (same tickers, different schema)
+            news_proxy = [
+                {
+                    "ticker": c.get("ticker", ""),
+                    "catalyst_type": c.get("catalyst_type", ""),
+                }
+                for c in candidates
+            ]
+            corroboration = sector_check.check_sector_corroboration(
+                signal_ticker=best["ticker"],
+                signal_catalyst_type=best["catalyst_type"],
+                news_items=news_proxy,
+            )
+            sector_check.log_sector_comparison(
+                ticker=best["ticker"],
+                catalyst_type=best["catalyst_type"],
+                catalyst_score=best["catalyst_score"],
+                corroboration=corroboration,
+            )
+            score = corroboration["corroboration_score"]
+            sector = corroboration["sector"]
+            print(f"  [SECTOR] {sector} | "
+                  f"corroboration: {score:+.1f}")
+        except Exception as e:
+            print(f"  [SECTOR] Check failed: {e}")
 
     output_path = SCRIPT_DIR / "options_signal.json"
     with open(output_path, "w", encoding="utf-8") as f:

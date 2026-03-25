@@ -23,6 +23,14 @@ except ImportError:
     FINBERT_AVAILABLE = False
     finbert_scorer = None
 
+# Sector corroboration checker — import gracefully
+try:
+    import sector_check
+    SECTOR_CHECK_AVAILABLE = True
+except ImportError:
+    SECTOR_CHECK_AVAILABLE = False
+    sector_check = None
+
 # ── Catalyst scoring ────────────────────────────────────────────────
 CATALYST_SCORES = {
     "earnings": (9, 10),
@@ -426,6 +434,31 @@ def main():
                           f"confidence: {finbert_result['confidence']:.3f})")
                 except Exception as e:
                     print(f"  [FINBERT] Shadow scoring failed: {e}")
+
+            # ── Sector corroboration (shadow mode — observe only) ──
+            if SECTOR_CHECK_AVAILABLE and sector_check:
+                try:
+                    corroboration = sector_check.check_sector_corroboration(
+                        signal_ticker=ticker,
+                        signal_catalyst_type=candidate["catalyst_type"],
+                        news_items=news_items,
+                    )
+                    sector_check.log_sector_comparison(
+                        ticker=ticker,
+                        catalyst_type=candidate["catalyst_type"],
+                        catalyst_score=candidate["catalyst_score"],
+                        corroboration=corroboration,
+                    )
+                    score = corroboration["corroboration_score"]
+                    sector = corroboration["sector"]
+                    supporting = corroboration["supporting_tickers"]
+                    contradicting = corroboration["contradicting_tickers"]
+                    print(f"  [SECTOR] {sector} | "
+                          f"corroboration: {score:+.1f} | "
+                          f"supporting: {supporting} | "
+                          f"contradicting: {contradicting}")
+                except Exception as e:
+                    print(f"  [SECTOR] Check failed: {e}")
 
             return
         else:
