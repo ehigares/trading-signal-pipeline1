@@ -434,6 +434,29 @@ Claude Code must add an entry here after every session.
 - Clean up the position tracker test data (`options_position_tracker.json`) before next live run
 
 ---
+## Session 14 — 2026-03-25
+**Status:** P0-2 — PEAD DTE table update, Friday preference, 30-day cap
+**Completed:**
+- Updated `DTE_TARGETS` in `options_contract.py` for PEAD (Post-Earnings Announcement Drift) research:
+  - `EARNINGS_BEAT`: (7,10) → (14,21) — drift continues 2-3 weeks post-earnings
+  - `EARNINGS_MISS`: (7,10) → (10,14) — misses resolve faster than beats
+  - `ANALYST_UPGRADE`: (10,14) → (14,21) — institutional flow takes 2+ weeks
+  - `MA_ANNOUNCEMENT`: (10,14) → (21,30) — M&A regulatory process is slow
+  - GAP, MACRO unchanged
+- Raised hard cap from 21 to 30 days to accommodate MA_ANNOUNCEMENT target range.
+- Implemented Friday preference in `select_expiration()`: uses `(distance, not_friday)` tuple as sort key so Fridays win ties at equal DTE distance. Previously picked purely on DTE proximity with no weekday preference.
+- Tested on Droplet:
+  - MA_ANNOUNCEMENT/AAPL: selected 2026-04-17 (DTE 23, Friday) — within 21-30 range
+  - EARNINGS_BEAT/AAPL: selected 2026-04-10 (DTE 16, Friday) — within 14-21 range
+  - Both expirations correctly fall on Fridays
+- Confirmed `grep -r "7, 10" /root/trading-pipeline/options/` returns nothing — old DTE range fully removed.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor next market morning cron run with the updated DTE ranges
+- Verify PAYX (EARNINGS_BEAT) now finds a valid expiration with the wider 14-21 DTE window (was failing at 7-10)
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals

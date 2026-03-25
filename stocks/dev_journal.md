@@ -372,6 +372,21 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 14 — 2026-03-25
+**Status:** P0-2 — SUE score implementation with flow-through to Google Sheets
+**Completed:**
+- Added `calculate_sue_score()` and `sue_to_score_adjustment()` functions to `brain.py`. SUE (Standardized Unexpected Earnings) measures earnings surprise as a percentage. The adjustment modifies catalyst scores: massive beat (>=20%) adds +1, tiny beat (<5%) subtracts -1, miss subtracts -2. No data = no adjustment.
+- Integrated SUE into candidate scoring in `main()`: extracts `eps` and `eps_est` from news items, calculates SUE, adjusts catalyst score (clamped to 1-10 range). Added `sue_score` field to candidate dict and best_signal.json output.
+- Added `sue_score` pass-through in `generator.py` (trade_signal.json) and `logger.py` (Google Sheets payload). Full flow: brain.py → best_signal.json → generator.py → trade_signal.json → logger.py → n8n → Google Sheets.
+- Deployed to Droplet and ran brain.py + full pipeline. No errors. All candidates show `sue_score: null` today (expected — no Benzinga earnings items with eps/eps_est fields in today's news). SUE will activate when Benzinga earnings data includes EPS figures.
+**Issues encountered:**
+- None.
+**Next session should:**
+- Monitor for an earnings-day run where Benzinga provides eps/eps_est to verify SUE calculation in action
+- Verify sue_score column appears in Google Sheets when a signal is generated
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]
