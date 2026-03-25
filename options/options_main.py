@@ -135,6 +135,26 @@ def main():
     now = datetime.now(EASTERN).isoformat(timespec="seconds")
     logger.info(f"=== OPTIONS PIPELINE START === {now}")
 
+    # ── Load regime state (written by stocks pipeline) ──
+    try:
+        regime_state_path = SCRIPT_DIR.parent / "stocks" / "regime_state.json"
+        if regime_state_path.exists():
+            with open(regime_state_path, "r") as f:
+                regime_state = json.load(f)
+            regime = regime_state.get("regime", "UNKNOWN")
+            vix = regime_state.get("vix", 0)
+            logger.info(f"[REGIME] {regime} | VIX: {vix}")
+        else:
+            sys.path.insert(0, str(SCRIPT_DIR.parent / "stocks"))
+            import regime_detector
+            regime_state = regime_detector.detect_regime()
+            regime_detector.save_regime_state(regime_state)
+            regime = regime_state.get("regime", "UNKNOWN")
+            logger.info(f"[REGIME] Detected directly: {regime}")
+    except Exception as e:
+        logger.warning(f"[REGIME] Could not load regime: {e}")
+        regime = "UNKNOWN"
+
     # Load position tracker (failure-safe)
     tracker = None
     try:

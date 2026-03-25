@@ -114,6 +114,11 @@ def build_signal_message(signal: dict) -> dict:
 
     thinkscript = build_thinkscript(signal)
 
+    regime_label = signal.get("regime", "")
+    regime_emoji = {"BULL": "\U0001f7e2", "NEUTRAL": "\U0001f7e1",
+                    "BEAR": "\U0001f534", "CRISIS": "\u26ab"}.get(
+                    regime_label, "\u26aa")
+
     blocks = [
         {
             "type": "header",
@@ -128,7 +133,8 @@ def build_signal_message(signal: dict) -> dict:
                 "type": "mrkdwn",
                 "text": (
                     f"*Catalyst:* {headline}\n"
-                    f"*Type:* {catalyst_type.title()} | *Score:* {score}/10\n"
+                    f"*Type:* {catalyst_type.title()} | *Score:* {score}/10 | "
+                    f"*Regime:* {regime_emoji} {regime_label}\n"
                     f"*Signal Time:* {display_time}"
                 ),
             },
@@ -165,6 +171,24 @@ def build_no_signal_message() -> dict:
     time_str = now.strftime("%I:%M %p EST")
     next_scan = get_next_scan_time()
 
+    try:
+        regime_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "regime_state.json")
+        if os.path.exists(regime_path):
+            with open(regime_path) as f:
+                rs = json.load(f)
+            regime_label = rs.get("regime", "")
+            regime_emoji = {"BULL": "\U0001f7e2", "NEUTRAL": "\U0001f7e1",
+                           "BEAR": "\U0001f534", "CRISIS": "\u26ab"}.get(
+                           regime_label, "\u26aa")
+            regime_str = (f"\nRegime: {regime_emoji} {regime_label} "
+                         f"| VIX: {rs.get('vix', 'N/A')}")
+        else:
+            regime_str = ""
+    except Exception:
+        regime_str = ""
+
     return {
         "blocks": [
             {
@@ -175,6 +199,7 @@ def build_no_signal_message() -> dict:
                         f"📭 *No Signal — {date_str} {time_str}*\n"
                         f"No stocks passed all filters at this time.\n"
                         f"Next scan: {next_scan}"
+                        f"{regime_str}"
                     ),
                 },
             },

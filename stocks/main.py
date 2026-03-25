@@ -69,6 +69,20 @@ def main():
     print(f"  {now.strftime('%B %d, %Y %I:%M %p')} EDT")
     print(f"{'='*60}")
 
+    # ── Regime Detection (shadow mode — observe only) ──
+    try:
+        sys.path.insert(0, SCRIPT_DIR)
+        import regime_detector
+        regime_state = regime_detector.detect_regime()
+        regime_detector.save_regime_state(regime_state)
+        regime = regime_state.get("regime", "UNKNOWN")
+        vix = regime_state.get("vix", 0)
+        print(f"  [REGIME] {regime} | VIX: {vix} | "
+              f"SPY: ${regime_state.get('spy_price', 0)}")
+    except Exception as e:
+        print(f"  [REGIME] Detection failed: {e} — continuing")
+        regime = "UNKNOWN"
+
     # ── Load position tracker (failure-safe) ──
     tracker = None
     try:
@@ -95,6 +109,17 @@ def main():
         print(f"\n[PIPELINE ERROR] {error}", file=sys.stderr)
         alert_slack(error)
         sys.exit(1)
+
+    # Inject regime into best_signal.json (shadow mode)
+    try:
+        with open(os.path.join(SCRIPT_DIR, "best_signal.json"), "r", encoding="utf-8") as f:
+            best_signal = json.load(f)
+        if best_signal.get("signal") is not False:
+            best_signal["regime"] = regime
+            with open(os.path.join(SCRIPT_DIR, "best_signal.json"), "w", encoding="utf-8") as f:
+                json.dump(best_signal, f, indent=2)
+    except Exception:
+        pass  # Non-critical — never block pipeline
 
     # Check if brain.py found a signal or not
     try:

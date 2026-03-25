@@ -91,6 +91,7 @@ def main():
         "reward_dollars": signal.get("reward_dollars", 0),
         "position_size": signal.get("position_size", 0),
         "sue_score": signal.get("sue_score", None),
+        "regime": signal.get("regime", ""),
         "result": "",
         "notes": "",
     }
