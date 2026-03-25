@@ -26,15 +26,26 @@ load_dotenv(SCRIPT_DIR.parent / ".env")
 
 WEBHOOK_URL = os.getenv("OPTIONS_N8N_WEBHOOK_URL", "")
 
-# Set up file logger
+# Set up file logger (explicit handlers — no root logger pollution)
 log_path = SCRIPT_DIR / "options.log"
-logging.basicConfig(
-    filename=str(log_path),
-    level=logging.INFO,
-    format="[%(asctime)s] [options_logger] [%(levelname)s] %(message)s",
+
+logger = logging.getLogger("options_logger")
+logger.setLevel(logging.INFO)
+logger.propagate = False
+
+_log_fmt = logging.Formatter(
+    "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-logger = logging.getLogger("options_logger")
+_file_handler = logging.FileHandler(str(log_path))
+_file_handler.setLevel(logging.INFO)
+_file_handler.setFormatter(_log_fmt)
+logger.addHandler(_file_handler)
+
+_console_handler = logging.StreamHandler(sys.stdout)
+_console_handler.setLevel(logging.INFO)
+_console_handler.setFormatter(_log_fmt)
+logger.addHandler(_console_handler)
 
 
 def now_eastern_display() -> str:

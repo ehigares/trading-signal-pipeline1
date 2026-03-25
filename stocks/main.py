@@ -66,7 +66,7 @@ def main():
     now = now_eastern()
     print(f"{'='*60}")
     print(f"  Trading Signal Pipeline")
-    print(f"  {now.strftime('%B %d, %Y %I:%M %p EST')}")
+    print(f"  {now.strftime('%B %d, %Y %I:%M %p')} EDT")
     print(f"{'='*60}")
 
     # ── Load position tracker (failure-safe) ──
