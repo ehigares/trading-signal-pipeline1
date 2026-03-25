@@ -120,6 +120,41 @@ def score_catalyst(catalyst_type: str, headline: str) -> int:
     return low
 
 
+def calculate_sue_score(eps_actual, eps_estimate) -> float | None:
+    """Calculate Standardized Unexpected Earnings score.
+    Returns the surprise as a percentage, or None if data unavailable.
+    A positive value means beat, negative means miss."""
+    try:
+        if eps_actual is None or eps_estimate is None:
+            return None
+        eps_actual = float(eps_actual)
+        eps_estimate = float(eps_estimate)
+        if eps_estimate == 0:
+            return None
+        return round(((eps_actual - eps_estimate) /
+                     abs(eps_estimate)) * 100, 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def sue_to_score_adjustment(sue: float | None) -> int:
+    """Convert SUE percentage to a score adjustment.
+    High surprise = higher score, low surprise = lower score."""
+    if sue is None:
+        return 0  # No data — no adjustment
+    if sue >= 20.0:
+        return 1   # Massive beat — boost score by 1
+    if sue >= 10.0:
+        return 0   # Strong beat — no adjustment
+    if sue >= 5.0:
+        return 0   # Modest beat — no adjustment
+    if sue > 0:
+        return -1  # Tiny beat — reduce score by 1
+    if sue < 0:
+        return -2  # Miss — reduce score by 2
+    return 0
+
+
 def check_trading_rules() -> str | None:
     """Check time-based trading rules. Returns error message or None if OK."""
     now = now_eastern()
@@ -303,7 +338,14 @@ def main():
         index_name = universe[ticker]
         catalyst_type = item.get("catalyst_type", "general")
         headline = item.get("headline", "")
-        catalyst_score = score_catalyst(catalyst_type, headline)
+
+        eps_actual = item.get("eps", None)
+        eps_estimate = item.get("eps_est", None)
+        sue_score = calculate_sue_score(eps_actual, eps_estimate)
+        score_adj = sue_to_score_adjustment(sue_score)
+        catalyst_score = max(1, min(10,
+                             score_catalyst(catalyst_type, headline)
+                             + score_adj))
 
         candidates.append({
             "ticker": ticker,
@@ -313,6 +355,7 @@ def main():
             "headline": headline,
             "source": item.get("source", ""),
             "timestamp": item.get("timestamp", ""),
+            "sue_score": sue_score,
         })
 
     print(f"  Candidates in universe: {len(candidates)}")
@@ -349,6 +392,7 @@ def main():
                 "source": candidate["source"],
                 "timestamp": now.isoformat(timespec="seconds"),
                 "reason_selected": "Highest scoring catalyst passing all filters",
+                "sue_score": candidate.get("sue_score", None),
             }
             with open("best_signal.json", "w", encoding="utf-8") as f:
                 json.dump(best_signal, f, indent=2)

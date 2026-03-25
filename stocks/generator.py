@@ -170,6 +170,7 @@ def main():
         "position_size": levels["position_size"],
         "atr": levels["atr"],
         "signal_time": now.isoformat(timespec="seconds"),
+        "sue_score": signal.get("sue_score", None),
     }
 
     with open("trade_signal.json", "w", encoding="utf-8") as f:

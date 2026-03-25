@@ -31,13 +31,13 @@ TARGET_MULT = 2.00   # 100% gain (2x entry)
 
 # DTE targets by catalyst type (min, max)
 DTE_TARGETS = {
-    "EARNINGS_BEAT":      (7, 10),
-    "EARNINGS_MISS":      (7, 10),
-    "ANALYST_UPGRADE":    (10, 14),
+    "EARNINGS_BEAT":      (14, 21),
+    "EARNINGS_MISS":      (10, 14),
+    "ANALYST_UPGRADE":    (14, 21),
     "ANALYST_DOWNGRADE":  (10, 14),
     "GAP_UP":             (5, 7),
     "GAP_DOWN":           (5, 7),
-    "MA_ANNOUNCEMENT":    (10, 14),
+    "MA_ANNOUNCEMENT":    (21, 30),
     "MACRO_POSITIVE":     (3, 5),
     "MACRO_NEGATIVE":     (3, 5),
 }
@@ -62,7 +62,7 @@ def select_expiration(ticker: yf.Ticker, catalyst_type: str, today: date) -> str
     dte_min, dte_max = DTE_TARGETS.get(catalyst_type, (7, 14))
 
     best_exp = None
-    best_distance = float("inf")
+    best_score = (float("inf"), 1)
 
     target_dte = (dte_min + dte_max) / 2  # Aim for midpoint
 
@@ -70,16 +70,18 @@ def select_expiration(ticker: yf.Ticker, catalyst_type: str, today: date) -> str
         exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
         dte = (exp_date - today).days
 
-        # Never same-day or more than 21 days out
-        if dte <= 0 or dte > 21:
+        # Never same-day or more than 30 days out
+        if dte <= 0 or dte > 30:
             continue
 
-        # Prefer Friday expirations (weekday 4 = Friday)
-        # But accept any if no Friday available in range
-
+        exp_weekday = exp_date.weekday()  # 0=Mon, 4=Fri
+        is_friday = exp_weekday == 4
         distance = abs(dte - target_dte)
-        if distance < best_distance:
-            best_distance = distance
+
+        # Use (distance, not_friday) as sort key so Fridays win ties
+        score = (distance, 0 if is_friday else 1)
+        if best_exp is None or score < best_score:
+            best_score = score
             best_exp = exp_str
 
     return best_exp

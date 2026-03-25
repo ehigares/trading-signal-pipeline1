@@ -90,6 +90,7 @@ def main():
         "risk_dollars": signal.get("risk_dollars", 0),
         "reward_dollars": signal.get("reward_dollars", 0),
         "position_size": signal.get("position_size", 0),
+        "sue_score": signal.get("sue_score", None),
         "result": "",
         "notes": "",
     }
