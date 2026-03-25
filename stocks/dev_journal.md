@@ -412,6 +412,34 @@ Claude Code must add an entry here after every session.
 
 ---
 
+### Session 16 — 2026-03-25
+**Status:** P1-2 — FinBERT shadow scorer integration
+**Completed:**
+- Installed `transformers` and `torch` on Droplet (`pip3 install transformers torch --break-system-packages`). PyTorch ~530MB, total install ~2.5GB with CUDA dependencies.
+- Created 2GB swap file on Droplet (`/swapfile`) — 961MB RAM was insufficient for PyTorch + FinBERT model loading (OOM kill). Swap persists across reboots via `/etc/fstab`.
+- Downloaded and cached FinBERT model (`ProsusAI/finbert`) on Droplet. First load takes ~5s, subsequent loads use local cache.
+- Created `stocks/finbert_scorer.py` — lazy-loading FinBERT module with `score_headline()` and `log_shadow_comparison()`. Graceful fallback if transformers not installed (`FINBERT_AVAILABLE = False`). Shadow log capped at 500 entries.
+- Integrated shadow scoring into `stocks/brain.py` — runs after best signal is selected and before `return`. Logs comparison but does NOT affect signal selection.
+- Created `options/finbert_scorer.py` — identical to stocks version except uses `options_finbert_shadow_log.json`.
+- Integrated shadow scoring into `options/options_brain.py` — runs after output dict is built, only when `no_signal` is False.
+- Added `finbert_shadow_log.json` and `options_finbert_shadow_log.json` to `.gitignore`.
+- Tested FinBERT directly on Droplet:
+  - Upgrade headline (Goldman Sachs Upgrades NVDA): neutral sentiment, score 0.23 (positive-leaning), confidence 0.73
+  - Downgrade headline (Morgan Stanley Downgrades AAPL): neutral sentiment, score 0.02, confidence 0.86
+  - FinBERT treats analyst rating headlines as informational rather than strongly sentiment-laden — expected behavior, shadow log captures this for future calibration.
+- Ran full stocks pipeline: completed clean, no signal today (all candidates failed filters), FinBERT not triggered (only runs when signal selected).
+- Ran full options pipeline: PAYX (EARNINGS_BEAT, score 9, CALL) selected. `[FINBERT] neutral (score: -0.021, confidence: 0.926)` logged. Shadow log created at `options_finbert_shadow_log.json` with first entry. PAYX was then skipped by position tracker (already signaled today from earlier session).
+- Confirmed `FINBERT_AVAILABLE: True` on Droplet.
+**Issues encountered:**
+- Droplet OOM (961MB RAM, no swap) killed Python when loading PyTorch + FinBERT. Fixed by creating 2GB swap file.
+- FinBERT HuggingFace warning ("unauthenticated requests") is cosmetic — model downloads and caches correctly without a token.
+**Next session should:**
+- Monitor cron runs to see FinBERT shadow scores accumulate in the log files
+- After 20+ entries, analyze keyword vs FinBERT agreement rate to decide Phase 2 scoring changes
+- Consider setting `HF_TOKEN` on Droplet to suppress HuggingFace warnings (optional, cosmetic)
+
+---
+
 ### Session Template
 ---
 ## Session [N] — [DATE]

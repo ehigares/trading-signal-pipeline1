@@ -471,6 +471,24 @@ Claude Code must add an entry here after every session.
 - Phase 2 will use regime to adjust options scoring (e.g., suppress CALL signals in BEAR regime, suppress PUT signals in BULL regime)
 
 ---
+## Session 16 — 2026-03-25
+**Status:** P1-2 — FinBERT shadow scorer integration
+**Completed:**
+- Created `options/finbert_scorer.py` — shadow sentiment scorer using FinBERT. Same as stocks version except logs to `options_finbert_shadow_log.json`. Graceful fallback if transformers not installed.
+- Integrated shadow scoring into `options/options_brain.py` — runs after output dict is built, only when a signal is selected (`no_signal` is False). Logs comparison but does NOT affect signal selection, scoring, or direction.
+- FinBERT installation and model download handled in stocks session (shared Droplet, shared Python packages).
+- 2GB swap file created on Droplet — required for PyTorch + FinBERT model loading (961MB RAM was insufficient).
+- Tested via full pipeline run: PAYX (EARNINGS_BEAT, score 9, CALL) triggered FinBERT shadow scoring. Result: neutral sentiment, score -0.021, confidence 0.926. First entry written to `options_finbert_shadow_log.json`.
+- FinBERT classifies SEC EDGAR 8-K headlines as neutral — expected, since "8-K - PAYCHEX INC (0000723531) (Filer)" is not sentiment-bearing text. Benzinga headlines with actual catalyst descriptions will produce more meaningful scores.
+- Added `options_finbert_shadow_log.json` to `.gitignore`.
+**Issues encountered:**
+- None specific to options — Droplet OOM fix (swap file) handled in stocks session.
+**Next session should:**
+- Monitor cron runs to see FinBERT shadow scores accumulate
+- After 20+ entries, analyze keyword vs FinBERT agreement rate
+- Benzinga headlines (with actual catalyst text) will produce better FinBERT signal than bare SEC EDGAR titles
+
+---
 
 ## Known Issues & Blockers
 - IV Rank uses realized vol approximation (yfinance lacks historical IV data) — may need recalibration after observing live signals
